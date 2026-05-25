@@ -185,7 +185,9 @@ public class Agent {
         builder.append("Be concise. Prefer editing existing files over creating new ones.\n");
         builder.append("When writing comments or Javadoc, use plain text only. Do NOT use HTML tags like <table>, <ol>, <li>, <p>, <h3> etc. in comments.\n");
         builder.append("When using the edit tool, ensure old_string matches the file content exactly (including whitespace).\n");
-
+        builder.append("If the user request is vague, ask for clarification instead of making assumptions.\n");
+        builder.append("Strictly distinguish: only answer questions with what/why/how etc. without writing/modifying code;"
+        +" act only when explicit action words like implement/write/fix/modify appear and user requests execution; when in doubt, always answer first, never act unasked.\n");
         if (!config.customSystemPrompt().isBlank()) {
             builder.append("\nAdditional instructions:\n");
             builder.append(config.customSystemPrompt()).append("\n");
