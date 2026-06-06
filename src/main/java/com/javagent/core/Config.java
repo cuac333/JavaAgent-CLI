@@ -52,6 +52,7 @@ public class Config {
     private static final String KEY_BYPASS_PERMISSIONS = "agent.bypass_permissions";
     private static final String KEY_MAX_CONTEXT_MESSAGES = "agent.max_context_messages";
     private static final String KEY_RATE_LIMIT_QPS = "agent.rate_limit_qps";
+    private static final String KEY_EFFORT = "agent.effort";
 
     /**
      * 存储所有配置项的 Properties 对象
@@ -123,6 +124,7 @@ public class Config {
         properties.putIfAbsent(KEY_BYPASS_PERMISSIONS, "false");
         properties.putIfAbsent(KEY_MAX_CONTEXT_MESSAGES, "100");
         properties.putIfAbsent(KEY_RATE_LIMIT_QPS, "10");
+        properties.putIfAbsent(KEY_EFFORT, "medium");
     }
 
     public void save() throws IOException {
@@ -264,6 +266,19 @@ public class Config {
 
     public int rateLimitQps() {
         return Integer.parseInt(properties.getProperty(KEY_RATE_LIMIT_QPS, "10"));
+    }
+
+    public String effort() {
+        return properties.getProperty(KEY_EFFORT, "medium").toLowerCase();
+    }
+
+    public void setEffort(String effort) throws IOException {
+        String level = effort.toLowerCase();
+        if (!level.equals("low") && !level.equals("medium") && !level.equals("high") && !level.equals("max")) {
+            throw new IllegalArgumentException("effort must be low|medium|high|max");
+        }
+        properties.setProperty(KEY_EFFORT, level);
+        save();
     }
 
     public void reload() throws IOException {

@@ -23,10 +23,13 @@ import com.javagent.tools.NetworkTool;
 
 import java.nio.file.Path;
 
+import org.jline.keymap.KeyMap;
+import org.jline.reader.Binding;
 import org.jline.reader.LineReader;
 import org.jline.reader.LineReaderBuilder;
 import org.jline.reader.History;
 import org.jline.reader.UserInterruptException;
+import org.jline.reader.Widget;
 import org.jline.reader.EndOfFileException;
 import org.jline.terminal.Terminal;
 import org.jline.terminal.TerminalBuilder;
@@ -64,6 +67,14 @@ public class JavaAgentCLI {
     private final AtomicBoolean awaitingApproval = new AtomicBoolean(false);
 
     public static void main(String[] args) throws Exception {
+        // Suppress JLine warnings before any JLine class loads.
+        // Configure via LogManager so the level is set before the Logger is created.
+        System.setProperty("java.util.logging.ConsoleHandler.level", "SEVERE");
+        java.util.logging.Logger jlineLogger = java.util.logging.Logger.getLogger("org.jline");
+        jlineLogger.setLevel(java.util.logging.Level.SEVERE);
+        for (var h : jlineLogger.getHandlers()) {
+            h.setLevel(java.util.logging.Level.SEVERE);
+        }
         new JavaAgentCLI().run(args);
     }
 
@@ -143,14 +154,26 @@ public class JavaAgentCLI {
                 .completer(completer)
                 .variable(LineReader.HISTORY_FILE, historyPath)
                 .variable(LineReader.LIST_MAX, 50)
-                .option(LineReader.Option.AUTO_MENU, true)
-                .option(LineReader.Option.AUTO_MENU_LIST, true)
+                .option(LineReader.Option.AUTO_LIST, true)
                 .variable(LineReader.COMPLETION_STYLE_LIST_BACKGROUND, "bg:black")
                 .variable(LineReader.COMPLETION_STYLE_LIST_SELECTION, "bold,fg:bright-blue")
                 .variable(LineReader.COMPLETION_STYLE_LIST_STARTING, "fg:white")
                 .variable(LineReader.COMPLETION_STYLE_LIST_DESCRIPTION, "fg:bright-black");
 
         LineReader reader = builder.build();
+
+        // When user types '/', show the completion list below without auto-inserting
+        Widget slashWidget = () -> {
+            reader.getBuffer().write('/');
+            String buf = reader.getBuffer().toString();
+            if (buf.equals("/")) {
+                reader.callWidget(LineReader.LIST_CHOICES);
+            }
+            return true;
+        };
+        reader.getWidgets().put("magic-slash", slashWidget);
+        KeyMap<Binding> mainKeyMap = reader.getKeyMaps().get(LineReader.MAIN);
+        mainKeyMap.bind(slashWidget, "/");
 
         PrintWriter out = terminal.writer();
 
@@ -263,6 +286,8 @@ public class JavaAgentCLI {
         c.register("/export", "导出当前对话为 Markdown");
         c.register("/stats", "查看工具执行统计");
         c.register("/network", "网络请求工具");
+        c.register("/context", "查看对话上下文使用情况");
+        c.register("/effort", "调节模型思考强度");
         return c;
     }
 
@@ -313,6 +338,7 @@ public class JavaAgentCLI {
                 if (!config.isMockMode() && config.apiKey().isBlank()) {
                     out.println(yellow("  警告: 未配置 API 密钥。"));
                 }
+                refreshStatusLine(out);
             }
             case "/stream" -> {
                 if (!argument.equals("on") && !argument.equals("off")) {
@@ -322,6 +348,7 @@ public class JavaAgentCLI {
                 }
                 config.setStreamResponses(argument.equals("on"));
                 out.println("  流式输出: " + (config.streamResponses() ? green("开启") : dim("关闭")));
+                refreshStatusLine(out);
             }
             case "/bash" -> {
                 if (!argument.equals("on") && !argument.equals("off")) {
@@ -332,6 +359,7 @@ public class JavaAgentCLI {
                 config.setBashEnabled(argument.equals("on"));
                 rebuildRuntime();
                 out.println("  Bash: " + (config.bashEnabled() ? green("已启用") : dim("已禁用")));
+                refreshStatusLine(out);
             }
             case "/prompt" -> handlePromptCommand(argument, out);
             case "/approvals" -> {
@@ -351,6 +379,7 @@ public class JavaAgentCLI {
                 }
                 config.setBypassPermissions(argument.equals("on"));
                 out.println("  跳过审批: " + (config.bypassPermissions() ? green("已开启") : dim("已关闭")));
+                refreshStatusLine(out);
             }
             case "/status" -> printStatus(out);
             case "/stats" -> {
@@ -379,10 +408,13 @@ public class JavaAgentCLI {
                     for (String w : warnings) {
                         out.println(yellow("  ⚠ ") + w);
                     }
+                    refreshStatusLine(out);
                 } catch (IOException e) {
                     out.println(red("  重载失败: ") + e.getMessage());
                 }
             }
+            case "/context" -> printContext(out);
+            case "/effort" -> handleEffortCommand(argument, out);
             default -> {
                 out.println(red("  ✗ ") + dim("未知命令。输入 /help 查看可用命令。"));
             }
@@ -579,6 +611,82 @@ public class JavaAgentCLI {
         out.println(dim("  ─────────────────────────────────────────────────"));
     }
 
+    /** Re-render the compact status line (called after config changes). */
+    private void refreshStatusLine(PrintWriter out) {
+        BannerPrinter.printStatusLine(config, toolRegistry, out);
+    }
+
+    private void printContext(PrintWriter out) {
+        int current = conversationManager.messageCount();
+        int max = config.maxContextMessages();
+        double ratio = max > 0 ? (double) current / max : 0;
+        int percent = (int) (ratio * 100);
+
+        // Visual bar: 30 chars wide
+        int barWidth = 30;
+        int filled = (int) (ratio * barWidth);
+        filled = Math.min(filled, barWidth);
+        String bar = green("█".repeat(filled)) + dim("░".repeat(barWidth - filled));
+
+        out.println();
+        out.println(bold("  对话上下文"));
+        out.println(dim("  ─────────────────────────────────────────────────"));
+        out.println("    " + dim("消息数: ") + contextColor(current, max) + dim(" / ") + dim(String.valueOf(max)));
+        out.println("    " + bar + " " + percentColor(percent));
+        out.println("    " + dim("会话: ") + cyan(conversationManager.currentSessionTitle()));
+        out.println("    " + dim("ID: ") + dim(shortId(conversationManager.currentSessionId())));
+        if (ratio >= 0.8) {
+            out.println("    " + yellow("⚠ 上下文即将满，建议使用 /clear 开始新会话"));
+        }
+        out.println(dim("  ─────────────────────────────────────────────────"));
+        out.println();
+    }
+
+    private void handleEffortCommand(String argument, PrintWriter out) throws IOException {
+        if (argument.isBlank()) {
+            String current = config.effort();
+            String display = switch (current) {
+                case "low" -> dim("low") + dim(" — 简短直接，跳过解释");
+                case "medium" -> cyan("medium") + dim(" — 平衡详细度");
+                case "high" -> yellow("high") + dim(" — 逐步推理，详细解释");
+                case "max" -> red("max") + dim(" — 最大深度推理，考虑所有边界情况");
+                default -> dim(current);
+            };
+            out.println("  当前思考强度: " + display);
+            out.println(dim("  用法: /effort low|medium|high|max"));
+            out.flush();
+            return;
+        }
+        String level = argument.toLowerCase();
+        if (!level.equals("low") && !level.equals("medium") && !level.equals("high") && !level.equals("max")) {
+            out.println(yellow("  用法: /effort low|medium|high|max"));
+            out.flush();
+            return;
+        }
+        config.setEffort(level);
+        String display = switch (level) {
+            case "low" -> dim("low") + dim(" — 简短直接");
+            case "medium" -> cyan("medium") + dim(" — 平衡详细度");
+            case "high" -> yellow("high") + dim(" — 详细推理");
+            case "max" -> red("max") + dim(" — 最大深度");
+            default -> level;
+        };
+        out.println("  思考强度已设为: " + display);
+        refreshStatusLine(out);
+    }
+
+    private static String contextColor(int current, int max) {
+        double r = max > 0 ? (double) current / max : 0;
+        int p = (int) (r * 100);
+        String s = String.valueOf(current);
+        return p < 50 ? green(s) : p < 80 ? yellow(s) : red(s);
+    }
+
+    private static String percentColor(int percent) {
+        String s = percent + "%";
+        return percent < 50 ? green(s) : percent < 80 ? yellow(s) : red(s);
+    }
+
     private void printStatus(PrintWriter out) {
         out.println();
         out.println(bold("  运行状态"));
@@ -589,6 +697,14 @@ public class JavaAgentCLI {
         printRow(out, "Bash", config.bashEnabled() ? green("已启用") : dim("已禁用"));
         printRow(out, "跳过审批", config.bypassPermissions() ? green("已开启") : dim("已关闭"));
         printRow(out, "审批缓存", agent.approvalCacheSize() + " 条记录");
+        String effortDisplay = switch (config.effort()) {
+            case "low" -> dim("low");
+            case "medium" -> cyan("medium");
+            case "high" -> yellow("high");
+            case "max" -> red("max");
+            default -> dim(config.effort());
+        };
+        printRow(out, "思考强度", effortDisplay);
         out.println(dim("  ─────────────────────────────────────────────────"));
         printRow(out, "当前会话", cyan(conversationManager.currentSessionTitle()));
         printRow(out, "会话 ID", dim(shortId(conversationManager.currentSessionId())));
@@ -625,6 +741,8 @@ public class JavaAgentCLI {
         printCmd(out, "/reload", "重新加载配置文件");
         printCmd(out, "/export", "导出当前对话为 Markdown");
         printCmd(out, "/stats", "查看工具执行统计");
+        printCmd(out, "/context", "查看对话上下文使用情况");
+        printCmd(out, "/effort low|medium|high|max", "调节模型思考强度");
         out.println(dim("  ─────────────────────────────────────────────────"));
         out.println();
         out.println(dim("  提示:"));

@@ -1,193 +1,184 @@
 # JavaAgent CLI
 
-JavaAgent CLI 是一个 Claude Code 风格的 Java 命令行 Agent，具备完整的工具调用、文件编辑、流式输出和交互式终端能力。
+一个基于 ReAct 架构的自主编程智能体（Autonomous Coding Agent），使用 Java 21 实现，具备工具调用、文件编辑、流式推理和交互式终端能力。参照 Claude Code 的交互范式，通过 Tool-Augmented LLM 模式将大语言模型与本地开发工具链深度集成。
 
 ## 核心能力
 
-- **Agent 循环** — ReAct 风格：用户输入 → 模型思考 → 调用工具 → 结果回灌 → 继续回答
-- **文件编辑** — 精确字符串替换，带彩色 diff 预览
-- **SSE 流式输出** — token-by-token 实时显示模型回复
-- **Thinking 模型** — 支持 reasoning_content 推理链
-- **Claude Code 风格 UI** — 方框边框、彩色输出、Markdown 渲染、Braille 动画
-- **安全机制** — 工作区隔离、审批确认、危险命令检测、敏感信息脱敏
+- **ReAct 推理循环** — Reasoning + Acting 交替执行，支持多步工具编排
+- **Tools** — 8 个内置工具（文件读写、编辑、搜索、Shell、HTTP），支持 SPI 插件扩展
+- **SSE 流式推理** — 逐 token 实时输出，支持 reasoning_content 思维链
+- **Human-in-the-Loop** — 只读操作自动放行，写操作需用户显式批准
+- **上下文窗口管理** — 自动压缩历史轮次，保留首条意图和最近上下文
+- **推理深度控制** — 4 级 effort（low/medium/high/max），通过 System Prompt 调控
+- **安全沙箱** — 工作区隔离、危险命令检测、敏感信息脱敏、连续失败保护
 - **跨平台** — Windows / macOS / Linux
-
-## Agent 循环流程图
-
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                        用户输入文本                               │
-└──────────────────────────┬──────────────────────────────────────┘
-                           ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                  添加到对话历史 (ConversationManager)              │
-│                  上下文压缩 (compactIfNeeded)                     │
-└──────────────────────────┬──────────────────────────────────────┘
-                           ▼
-┌─────────────────────────────────────────────────────────────────┐
-│              调用模型 (ModelClient.chat)                          │
-│         ┌──────────────────────────────────────┐                │
-│         │  MockModelClient  │ OpenAI 客户端     │                │
-│         │  (关键词匹配)      │ (SSE 流式)        │                │
-│         └──────────────────────────────────────┘                │
-└──────────────────────────┬──────────────────────────────────────┘
-                           ▼
-              ┌────────────┴────────────┐
-              │     模型返回类型？        │
-              └────────────┬────────────┘
-         ┌─────────────────┼─────────────────┐
-         ▼                 ▼                 ▼
-   ┌──────────┐     ┌───────────┐     ┌──────────┐
-   │  TEXT    │     │ TOOL_CALLS│     │  ERROR   │
-   │ 纯文本   │     │ 请求工具   │     │ 请求失败  │
-   └────┬─────┘     └─────┬─────┘     └────┬─────┘
-        │                 │                │
-        ▼                 ▼                ▼
-  ┌──────────┐    ┌──────────────┐   ┌──────────┐
-  │ 返回结果  │    │ 审批检查      │   │ 返回错误  │
-  │ 给用户    │    │ (ApprovalMgr)│   │ 给用户    │
-  └──────────┘    └──────┬───────┘   └──────────┘
-                         ▼
-              ┌──────────┴──────────┐
-              │  是否需要审批？       │
-              └──────────┬──────────┘
-           ┌─────────────┼─────────────┐
-           ▼             ▼             ▼
-     ┌──────────┐  ┌──────────┐  ┌──────────┐
-     │ 自动通过  │  │ 问用户    │  │ 自动拒绝  │
-     │ 只读工具  │  │ yes/no   │  │ 外部路径  │
-     └────┬─────┘  └────┬─────┘  └────┬─────┘
-          │             │             │
-          ▼             ▼             ▼
-     ┌──────────────────────────────────────┐
-     │          执行工具 (Tool.execute)       │
-     │   记录统计 (ToolStats)                │
-     │   脱敏结果 (Sanitizer)                │
-     └──────────────────┬───────────────────┘
-                        ▼
-              ┌─────────┴─────────┐
-              │  执行成功？         │
-              └─────────┬─────────┘
-           ┌────────────┴────────────┐
-           ▼                         ▼
-     ┌──────────┐             ┌──────────┐
-     │ 连续失败  │             │ 结果回灌  │
-     │ ≥3 次中断 │             │ 继续循环  │
-     └──────────┘             └──────────┘
-```
-
-## 环境要求
-
-- Java 21+
-- Maven 3.8+
-
-```bash
-java -version
-mvn -v
-```
 
 ## 快速开始
 
 ```bash
-cd /path/to/javaagent-cli
+# 环境要求：Java 21+、Maven 3.8+
+
+# 首次使用：构建项目
+cd JavaAgent-CLI
 mvn clean package -DskipTests
-java -jar target/javaagent-cli-1.0.0.jar --mock
+
+# 首次使用：将启动脚本链接到 PATH
+ln -s "$(pwd)/javaagentcli" ~/.local/bin/javaagentcli
+
+# 后续启动
+cd JavaAgent-CLI && javaagentcli 
 ```
 
-启动后看到
+`javaagentcli` 自动传入 `--enable-native-access=ALL-UNNAMED` 消除 JVM 警告。也可直接 `java -jar target/javaagent-cli-1.0.0.jar --mock`。
 
-```bash
-╭─ JavaAgent CLI v1.0.0 ─────────────────────────────────────────────────────╮
-│                                       │  快速开始                           │
-│                                       │ ───────────────────────────────────│
-│  输入问题，Agent 自动调用工具帮你       │  /help  查看所有命令                 │
-│  只读工具(read,grep,ls)免审批运行      │  /tools  查看可用工具                │
-│  文件编辑(edit,write,delete)需确认     │  /status  查看运行状态              │
-│  输入 / 然后按 Tab 键自动补全命令       │  /exit  退出程序                    │
-│                                       │ ───────────────────────────────────│
-│  D:\develop\vs-code\JavaAgent-CLI-mcq │  real · mimo-v2.5-pro · 8 tools    │
-╰────────────────────────────────────────────────────────────────────────────╯
-  会话: D:developvs-codeJavaAgent-CLI-mcqsrcm... (103 条消息)
+## 使用方式
 
-──────────────────────────────────────────────────────────────────────────────
->
+启动后直接输入自然语言指令，Agent 自主规划执行路径并调用工具完成任务：
+
+```
+> 帮我读取 src/Main.java 的前 20 行
+> 搜索项目中所有 TODO 注释
+> 把 Foo.java 里的 oldMethod 改名为 newMethod
 ```
 
-即进入交互模式。
+输入 `/` 可查看所有斜杠命令，上下键浏览，Tab 确认。
 
-## 工具列表
+## Agent 架构
 
-| 工具             | 别名                 | 说明                           | 审批     |
-| ---------------- | -------------------- | ------------------------------ | -------- |
-| `read_file`      | `cat`                | 读取文本文件                   | 自动通过 |
-| `write_file`     | `write`, `save_file` | 写入文件（带 60 行预览）       | 需要审批 |
-| `edit`           | `replace`, `sed`     | 精确字符串替换（带 diff 预览） | 需要审批 |
-| `delete_file`    | `rm`                 | 删除文件                       | 需要审批 |
-| `grep`           | `search`, `find`     | 正则搜索文本                   | 自动通过 |
-| `list_directory` | `ls`, `dir`          | 列出目录内容                   | 自动通过 |
-| `bash`           | `shell`, `exec`      | 执行 shell 命令                | 需要审批 |
-| `network`        | `http`, `fetch`      | HTTP 请求                      | 需要审批 |
+### ReAct 推理循环
 
-`bash` 工具默认关闭，执行 `/bash on` 后启用。
+本项目采用 **ReAct（Reasoning + Acting）** 范式，核心流程为：
+
+1. **Observation** — 接收用户输入，连同对话历史注入上下文窗口
+2. **Reasoning** — LLM 基于 System Prompt 和工具定义进行推理，决定下一步行动
+3. **Action** — 若模型返回 `tool_calls`，Agent 调用对应工具并获取执行结果
+4. **Reflection** — 工具结果回灌至上下文，模型基于新观察继续推理或生成最终回复
+5. **Loop** — 重复步骤 2-4，直至模型产出纯文本回复或达到最大迭代次数
+
+```text
+                    ┌─────────────────────────────┐
+                    │        User Input            │
+                    └──────────────┬──────────────┘
+                                   ▼
+                    ┌──────────────────────────────┐
+                    │   Context Window Management   │
+                    │   (ConversationManager)       │
+                    └──────────────┬───────────────┘
+                                   ▼
+                    ┌──────────────────────────────┐
+                    │   LLM Inference (chat)        │
+                    │   ├─ MockModelClient          │
+                    │   └─ OpenAI-Compatible Client  │
+                    └──────────────┬───────────────┘
+                                   ▼
+                      ┌────────────┴────────────┐
+                      │     Response Type?       │
+                      └────────────┬────────────┘
+               ┌───────────────────┼───────────────────┐
+               ▼                   ▼                   ▼
+          ┌─────────┐      ┌─────────────┐      ┌─────────┐
+          │  TEXT    │      │ TOOL_CALLS  │      │  ERROR  │
+          │ Final    │      │ Function    │      │ Handle  │
+          │ Reply    │      │ Calling     │      │ & Exit  │
+          └─────────┘      └──────┬──────┘      └─────────┘
+                                  ▼
+                      ┌───────────────────────┐
+                      │  Human-in-the-Loop    │
+                      │  (ApprovalManager)    │
+                      │  ├─ Auto-approve: r/o │
+                      │  ├─ Prompt user: r/w  │
+                      │  └─ Deny: policy      │
+                      └───────────┬───────────┘
+                                  ▼
+                      ┌───────────────────────┐
+                      │  Tool Execution       │
+                      │  ├─ Tool.execute()    │
+                      │  ├─ ToolStats.record()│
+                      │  └─ Sanitizer.clean() │
+                      └───────────┬───────────┘
+                                  ▼
+                        Observation → Reasoning → ...
+```
+
+### 关键设计
+
+| 机制 | 说明 |
+|---|---|
+| **ReAct Loop** | 推理-行动交替循环，最多 12 轮（可配置），支持多步工具编排 |
+| **Human-in-the-Loop** | 只读操作自动放行，写操作需用户显式批准，外部路径默认拒绝 |
+| **Context Window Management** | 超过消息上限时自动压缩中间轮次，保留首条用户意图和最近上下文 |
+| **Streaming Inference** | SSE 逐 token 流式输出，支持 `reasoning_content` 思维链 |
+| **Effort Control** | 4 级推理深度（low/medium/high/max），通过 System Prompt 注入控制 |
+| **Failure Recovery** | 同一工具连续失败 3 次自动中断，防止无限循环 |
+| **Guardrails** | 10 类危险命令正则检测、工作区沙箱隔离、敏感信息脱敏 |
 
 ## 斜杠命令
 
-| 命令                        | 说明                    |
-| --------------------------- | ----------------------- |
-| `/help`                     | 显示可用命令            |
-| `/exit`, `/quit`            | 退出程序                |
-| `/clear`, `/new [title]`    | 新建会话                |
-| `/save [title]`             | 保存当前会话            |
-| `/load [id\|title\|latest]` | 加载已保存的会话        |
-| `/sessions`                 | 列出已保存的会话        |
-| `/tools`                    | 列出已注册的工具        |
-| `/mode mock\|real`          | 切换模型模式            |
-| `/stream on\|off`           | 开关流式输出            |
-| `/bash on\|off`             | 开关 Bash 工具          |
-| `/bypass on\|off`           | 跳过所有工具审批确认    |
-| `/prompt show\|set\|reset`  | 管理自定义系统提示词    |
-| `/approvals clear`          | 清空审批缓存            |
-| `/reload`                   | 重新加载配置文件        |
-| `/export`                   | 导出当前对话为 Markdown |
-| `/stats`                    | 查看工具执行统计        |
-| `/status`                   | 显示运行状态            |
-| `/network`                  | 网络请求工具            |
+| 命令 | 说明 |
+|---|---|
+| `/help` | 显示帮助信息 |
+| `/exit` `/quit` | 退出程序 |
+| `/clear` `/new [title]` | 新建会话 |
+| `/save [title]` | 保存当前会话 |
+| `/load [id\|title\|latest]` | 加载已保存的会话 |
+| `/sessions` | 列出已保存的会话 |
+| `/tools` | 列出已注册的工具 |
+| `/mode mock\|real` | 切换模型模式 |
+| `/stream on\|off` | 开关流式输出 |
+| `/bash on\|off` | 开关 Bash 工具 |
+| `/bypass on\|off` | 跳过所有工具审批确认 |
+| `/effort low\|medium\|high\|max` | 调节模型推理深度 |
+| `/context` | 查看上下文窗口使用情况 |
+| `/prompt show\|set\|reset` | 管理自定义 System Prompt |
+| `/approvals clear` | 清空审批缓存 |
+| `/reload` | 重新加载配置文件 |
+| `/export` | 导出当前对话为 Markdown |
+| `/stats` | 查看工具调用统计 |
+| `/status` | 显示运行时状态 |
 
-输入 `/` 然后 双击 Tab 可自动补全命令。上下方向键可切换补全全。按第一次enter可以补全命令。按第二次enter可以执行命令。可以根据自身需要可以开启bypass模式，跳过所有工具审批确认但是后果需自行承担。
+## 工具注册表
+
+| 工具 | 别名 | 说明 | 权限 |
+|---|---|---|---|
+| `read_file` | `cat` | 读取文本文件（256KB 上限，自动分页） | 只读 |
+| `write_file` | `write`, `save_file` | 写入文件（带 60 行预览，100KB 上限） | 读写 |
+| `edit` | `replace`, `sed` | 精确字符串替换（带彩色 diff 预览） | 读写 |
+| `delete_file` | `rm` | 删除文件（禁止删除工作区根目录） | 读写 |
+| `grep` | `search`, `find` | 正则搜索（跳过 target/.git，最多 100 匹配） | 只读 |
+| `list_directory` | `ls`, `dir` | 递归列出目录内容 | 只读 |
+| `bash` | `shell`, `exec` | 执行 Shell 命令（默认禁用，10s 超时） | 读写 |
+| `network` | `http`, `fetch` | HTTP 请求 | 读写 |
+
+工具系统支持 SPI 插件扩展：实现 `ToolProvider` 接口并通过 `ServiceLoader` 自动发现。
 
 ## 配置
 
-在项目根目录创建 `config.properties`（图示为默认值）：
+在项目根目录创建 `config.properties`（以下为默认值）：
 
 ```properties
-# 模式
-agent.mock_mode=true           # 是否使用模拟模式（不实际调用API）
-agent.api_key=                 # API 密钥
-agent.base_url=https://api.openai.com/v1  # API 基础 URL
-agent.model=gpt-5.4-mini       # 使用的模型名称
+# 模型
+agent.mock_mode=true
+agent.api_key=
+agent.base_url=https://api.openai.com/v1
+agent.model=gpt-5.4-mini
+agent.effort=medium              # 推理深度：low | medium | high | max
 
 # 行为
-agent.auto_save=true           # 是否自动保存会话
-agent.max_iterations=12        # 最大工具调用循环次数
-agent.enable_bash=false        # 是否启用 Bash 工具
-agent.stream_responses=true    # 是否流式输出响应
-agent.approval_cache=true      # 是否启用审批缓存
-agent.allow_external_paths=false  # 是否允许访问工作区外路径
-agent.bypass_permissions=false # 是否跳过所有工具审批确认
+agent.auto_save=true
+agent.max_iterations=12          # ReAct 最大循环次数
+agent.enable_bash=false
+agent.stream_responses=true
+agent.approval_cache=true
+agent.allow_external_paths=false
+agent.bypass_permissions=false
 
-# 高级
-agent.system_prompt=           # 自定义系统提示词
-agent.max_context_messages=100 # 最大上下文消息数量
-agent.rate_limit_qps=10        # API 请求速率限制（每秒请求数）
+# 上下文
+agent.system_prompt=             # 自定义 System Prompt
+agent.max_context_messages=100   # 上下文窗口大小
+agent.rate_limit_qps=10          # API 请求限流（QPS）
 ```
 
-配置文件查找顺序：
-
-1. 项目根目录（有 `pom.xml` 的目录）
-2. 工作目录
-3. `~/.javaagent-cli/config.properties`
-
-运行时可通过 `/reload` 重载配置。
+配置文件查找顺序：项目根目录 → 工作目录 → `~/.javaagent-cli/config.properties`。运行时可通过 `/reload` 热重载。
 
 ## 安全机制
 
@@ -201,39 +192,31 @@ agent.rate_limit_qps=10        # API 请求速率限制（每秒请求数）
 
 ```text
 src/main/java/com/javagent/
-├── JavaAgentCLI.java          # CLI 入口，终端交互，命令处理
-├── BannerPrinter.java         # 启动横幅
-├── SlashCommandCompleter.java # 命令自动补全
+├── JavaAgentCLI.java              # CLI 入口、REPL、Slash Command 路由
+├── BannerPrinter.java             # 启动横幅、运行时状态栏
+├── SlashCommandCompleter.java     # JLine3 Tab 补全
 ├── core/
-│   ├── Agent.java             # Agent 核心循环
-│   ├── Config.java            # 配置管理
-│   ├── ConversationManager.java # 会话管理
-│   ├── ApprovalManager.java   # 审批管理
-│   └── ToolStats.java         # 工具执行统计
+│   ├── Agent.java                 # ReAct 核心循环引擎
+│   ├── Config.java                # Properties 配置管理
+│   ├── ConversationManager.java   # 多会话持久化、上下文压缩
+│   ├── ApprovalManager.java       # 权限策略引擎 + 审批缓存
+│   └── ToolStats.java             # 工具调用指标（次数/耗时/错误率）
 ├── model/
-│   ├── Message.java           # 消息结构
-│   ├── ModelClient.java       # 模型客户端接口
-│   ├── OpenAiCompatibleModelClient.java # OpenAI API 客户端（SSE 流式）
-│   ├── MockModelClient.java   # Mock 客户端
-│   └── ToolDisplayCallback.java # 工具执行回调
+│   ├── ModelClient.java           # 模型客户端抽象接口
+│   ├── OpenAiCompatibleModelClient.java  # OpenAI 兼容 API（SSE 流式 + 重试 + 限流）
+│   └── MockModelClient.java       # 关键词匹配 Mock（离线调试用）
 ├── tools/
-│   ├── Tool.java              # 工具接口
-│   ├── ToolRegistry.java      # 工具注册中心
-│   ├── ToolProvider.java      # SPI 插件接口
-│   ├── FileToolSupport.java   # 文件工具辅助类
-│   ├── ReadFileTool.java      # 读文件
-│   ├── WriteFileTool.java     # 写文件（带预览）
-│   ├── EditTool.java          # 编辑工具（带 diff）
-│   ├── DeleteFileTool.java    # 删文件
-│   ├── GrepTool.java          # 搜索工具
-│   ├── ListDirectoryTool.java # 列目录
-│   ├── BashTool.java          # Bash 工具
-│   └── NetworkTool.java       # HTTP 请求工具
+│   ├── Tool.java                  # 工具抽象接口
+│   ├── ToolRegistry.java          # 名称/别名查找 + SPI 插件发现
+│   ├── ToolProvider.java          # SPI 扩展接口
+│   ├── ReadFileTool / WriteFileTool / EditTool / DeleteFileTool
+│   ├── GrepTool / ListDirectoryTool / BashTool / NetworkTool
+│   └── FileToolSupport.java       # 文件工具公共逻辑（路径校验、二进制检测）
 └── util/
-    ├── Terminal.java          # ANSI 终端颜色
-    ├── MarkdownRenderer.java  # Markdown 渲染
-    ├── Sanitizer.java         # 敏感信息过滤
-    └── RateLimiter.java       # 速率限制
+    ├── Terminal.java              # ANSI 终端渲染（自动检测色彩支持）
+    ├── MarkdownRenderer.java      # Markdown → ANSI 转换
+    ├── Sanitizer.java             # 敏感信息正则脱敏
+    └── RateLimiter.java           # 令牌桶限流器
 ```
 
 ## 测试
@@ -242,27 +225,4 @@ src/main/java/com/javagent/
 mvn test
 ```
 
-66 个测试，覆盖核心逻辑、工具执行、审批管理。
-
-## 常见问题
-
-### 找不到 POM
-
-```bash
-cd /path/to/javaagent-cli
-mvn clean package -DskipTests
-```
-
-### 找不到 Java (macOS)
-
-```bash
-/opt/homebrew/opt/openjdk/bin/java -jar target/javaagent-cli-1.0.0.jar --mock
-```
-
-### 启动后恢复旧会话
-
-输入 `/clear` 开始新会话。
-
-### real 模式报 API key 错误
-
-确保 `config.properties` 中配置了 `agent.api_key`，或切回 `/mode mock`。
+66 个 JUnit 5 测试用例，覆盖 Agent 循环、工具执行、审批策略、配置管理、会话持久化等核心模块。
