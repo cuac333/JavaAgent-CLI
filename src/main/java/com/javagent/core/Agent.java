@@ -204,9 +204,10 @@ public class Agent {
         String effort = config.effort();
         switch (effort) {
             case "low" -> builder.append("Be brief and direct. Skip explanations unless asked. Minimal reasoning.\n");
-            case "medium" -> builder.append("Provide balanced responses with moderate detail.\n");
             case "high" -> builder.append("Think step-by-step. Provide thorough analysis and detailed explanations.\n");
+            case "xhigh" -> builder.append("Deep reasoning with extended analysis. Explore multiple approaches before responding. Consider edge cases and trade-offs.\n");
             case "max" -> builder.append("Maximize reasoning depth. Consider all edge cases, alternatives, and implications before responding. Be extremely thorough.\n");
+            case "ultra" -> builder.append("ULTRA MODE: Exhaustive reasoning. Explore every angle, question assumptions, stress-test your own answers. Consider second-order effects, failure modes, and hidden constraints. Be maximally thorough and precise.\n");
         }
 
         if (!config.customSystemPrompt().isBlank()) {

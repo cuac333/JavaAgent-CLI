@@ -214,6 +214,80 @@ public final class Terminal {
         return text.replaceAll("\033\\[[;\\d]*m", "");
     }
 
+    /**
+     * Calculate the display width of a string in terminal columns.
+     * CJK characters occupy 2 columns; ASCII and other chars occupy 1.
+     */
+    public static int displayWidth(String text) {
+        if (text == null) return 0;
+        int width = 0;
+        for (int i = 0; i < text.length(); i++) {
+            char ch = text.charAt(i);
+            width += charWidth(ch);
+        }
+        return width;
+    }
+
+    private static int charWidth(char ch) {
+        if (ch >= 0x1100 && (
+                ch <= 0x115f || ch == 0x2329 || ch == 0x232a
+                || (ch >= 0x2e80 && ch <= 0x303e) || (ch >= 0x3040 && ch <= 0x33bf)
+                || (ch >= 0x3400 && ch <= 0x4dbf) || (ch >= 0x4e00 && ch <= 0xa4cf)
+                || (ch >= 0xa960 && ch <= 0xa97c) || (ch >= 0xac00 && ch <= 0xd7a3)
+                || (ch >= 0xf900 && ch <= 0xfaff) || (ch >= 0xfe30 && ch <= 0xfe6f)
+                || (ch >= 0xff01 && ch <= 0xff60) || (ch >= 0xffe0 && ch <= 0xffe6)
+                || (ch >= 0x20000 && ch <= 0x2fffd) || (ch >= 0x30000 && ch <= 0x3fffd))) {
+            return 2;
+        }
+        return 1;
+    }
+
+    /**
+     * Neon rainbow effect — cycles ANSI colors per character.
+     * Each call shifts the palette by one position for animation.
+     */
+    private static final String[] NEON_PALETTE = {
+        "\033[91m", // bright red
+        "\033[93m", // bright yellow
+        "\033[92m", // bright green
+        "\033[96m", // bright cyan
+        "\033[94m", // bright blue
+        "\033[95m", // bright magenta
+    };
+
+    public static String neon(String text, int offset) {
+        if (!ENABLED) return text;
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < text.length(); i++) {
+            String color = NEON_PALETTE[(i + offset) % NEON_PALETTE.length];
+            sb.append(color).append(BOLD).append(text.charAt(i)).append(RESET);
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Render a neon glow line — full-width colored bar with bold text.
+     * Uses background color cycling for a "glow" effect.
+     */
+    private static final String[] NEON_BG = {
+        "\033[101m\033[97m", // bright red bg + white fg
+        "\033[103m\033[30m", // bright yellow bg + black fg
+        "\033[102m\033[30m", // bright green bg + black fg
+        "\033[106m\033[30m", // bright cyan bg + black fg
+        "\033[104m\033[97m", // bright blue bg + white fg
+        "\033[105m\033[97m", // bright magenta bg + white fg
+    };
+
+    public static String neonGlow(String text, int offset) {
+        if (!ENABLED) return text;
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < text.length(); i++) {
+            String style = NEON_BG[(i + offset) % NEON_BG.length];
+            sb.append(style).append(BOLD).append(text.charAt(i)).append(RESET);
+        }
+        return sb.toString();
+    }
+
     /** Detect terminal width, defaulting to 80. */
     public static int terminalWidth() {
         String cols = System.getenv("COLUMNS");
