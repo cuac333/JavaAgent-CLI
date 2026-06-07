@@ -35,7 +35,6 @@ public class Config {
      * agent.approval_cache - 是否启用审批缓存 - 默认值: true
      * agent.allow_external_paths - 是否允许访问工作区外路径 - 默认值: false
      * agent.bypass_permissions - 是否跳过所有工具审批确认 - 默认值: false
-     * agent.max_context_messages - 最大上下文消息数量 - 默认值: 100
      * agent.rate_limit_qps - API 请求速率限制（每秒请求数） - 默认值: 10
      */
     private static final String KEY_MOCK_MODE = "agent.mock_mode";
@@ -50,9 +49,10 @@ public class Config {
     private static final String KEY_APPROVAL_CACHE = "agent.approval_cache";
     private static final String KEY_ALLOW_EXTERNAL_PATHS = "agent.allow_external_paths";
     private static final String KEY_BYPASS_PERMISSIONS = "agent.bypass_permissions";
-    private static final String KEY_MAX_CONTEXT_MESSAGES = "agent.max_context_messages";
     private static final String KEY_RATE_LIMIT_QPS = "agent.rate_limit_qps";
     private static final String KEY_EFFORT = "agent.effort";
+    private static final String KEY_MAX_TOKENS = "agent.max_tokens";
+    private static final String KEY_COMPACT_THRESHOLD = "agent.compact_threshold";
 
     /**
      * 存储所有配置项的 Properties 对象
@@ -122,9 +122,10 @@ public class Config {
         properties.putIfAbsent(KEY_APPROVAL_CACHE, "true");
         properties.putIfAbsent(KEY_ALLOW_EXTERNAL_PATHS, "false");
         properties.putIfAbsent(KEY_BYPASS_PERMISSIONS, "false");
-        properties.putIfAbsent(KEY_MAX_CONTEXT_MESSAGES, "100");
         properties.putIfAbsent(KEY_RATE_LIMIT_QPS, "10");
         properties.putIfAbsent(KEY_EFFORT, "medium");
+        properties.putIfAbsent(KEY_MAX_TOKENS, "200000");
+        properties.putIfAbsent(KEY_COMPACT_THRESHOLD, "0.8");
     }
 
     public void save() throws IOException {
@@ -260,16 +261,20 @@ public class Config {
         save();
     }
 
-    public int maxContextMessages() {
-        return Integer.parseInt(properties.getProperty(KEY_MAX_CONTEXT_MESSAGES, "100"));
-    }
-
     public int rateLimitQps() {
         return Integer.parseInt(properties.getProperty(KEY_RATE_LIMIT_QPS, "10"));
     }
 
     public String effort() {
         return properties.getProperty(KEY_EFFORT, "medium").toLowerCase();
+    }
+
+    public int maxTokens() {
+        return Integer.parseInt(properties.getProperty(KEY_MAX_TOKENS, "200000"));
+    }
+
+    public double compactThreshold() {
+        return Double.parseDouble(properties.getProperty(KEY_COMPACT_THRESHOLD, "0.8"));
     }
 
     public void setEffort(String effort) throws IOException {

@@ -50,7 +50,7 @@ public final class MarkdownRenderer {
 
         int width = terminalWidth() - 2;
         StringBuilder out = new StringBuilder();
-        String[] lines = markdown.split("\\n", -1);
+        String[] lines = splitLines(markdown);
 
         boolean inCodeBlock = false;
         String codeLang = "";
@@ -155,7 +155,7 @@ public final class MarkdownRenderer {
 
     /** Render a code block with syntax highlighting and line numbers. */
     private static void renderCodeBlock(StringBuilder out, String code, String lang, int width) {
-        String[] codeLines = code.split("\\n", -1);
+        String[] codeLines = splitLines(code);
         boolean isJavaLike = lang.isEmpty() || lang.equalsIgnoreCase("java")
                 || lang.equalsIgnoreCase("js") || lang.equalsIgnoreCase("javascript")
                 || lang.equalsIgnoreCase("ts") || lang.equalsIgnoreCase("typescript")

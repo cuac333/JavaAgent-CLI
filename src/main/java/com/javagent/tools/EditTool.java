@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static com.javagent.util.Terminal.splitLines;
+
 /**
  * Edit tool — replace exact string occurrences in a file.
  *
@@ -109,16 +111,17 @@ public class EditTool implements Tool {
                 newContent = content.replace(oldString, newString);
             } else {
                 int idx = content.indexOf(oldString);
-                changeStartLine = content.substring(0, idx).split("\\n", -1).length - 1;
+                changeStartLine = splitLines(content.substring(0, idx)).length - 1;
                 newContent = content.substring(0, idx) + newString + content.substring(idx + oldString.length());
             }
             Files.writeString(path, newContent, StandardCharsets.UTF_8);
 
-            String[] oldLines = oldString.split("\\n", -1);
-            String[] newLines = newString.split("\\n", -1);
+            String[] oldLines = splitLines(oldString);
+            String[] newLines = splitLines(newString);
+            String nl = System.lineSeparator();
             String summary = "Edited " + path.toAbsolutePath()
-                    + " (-" + oldLines.length + " lines, +" + newLines.length + " lines)\n"
-                    + "```diff\n" + generateDiff(oldLines, newLines, changeStartLine) + "```";
+                    + " (-" + oldLines.length + " lines, +" + newLines.length + " lines)" + nl
+                    + "```diff" + nl + generateDiff(oldLines, newLines, changeStartLine) + "```";
             return ToolExecutionResult.success(summary);
 
         } catch (IOException e) {
@@ -133,8 +136,8 @@ public class EditTool implements Tool {
      * so the model can see the actual text and construct the correct old_string.
      */
     private ToolExecutionResult buildContentHint(String content, String oldString) {
-        String[] contentLines = content.split("\\n", -1);
-        String[] oldLines = oldString.split("\\n", -1);
+        String[] contentLines = splitLines(content);
+        String[] oldLines = splitLines(oldString);
 
         // Find the most distinctive line from old_string
         String probe = "";
@@ -188,15 +191,16 @@ public class EditTool implements Tool {
     // ─────────── Diff preview ───────────
 
     private String generateDiff(String[] oldLines, String[] newLines, int changeStartLine) {
+        String nl = System.lineSeparator();
         StringBuilder diff = new StringBuilder();
         diff.append("@@ -").append(changeStartLine + 1).append(",").append(oldLines.length)
-            .append(" +").append(changeStartLine + 1).append(",").append(newLines.length).append(" @@\n");
+            .append(" +").append(changeStartLine + 1).append(",").append(newLines.length).append(" @@" + nl);
 
         for (String line : oldLines) {
-            diff.append("\033[48;2;90;30;30;97m- ").append(line).append("\033[0m\n");
+            diff.append(com.javagent.util.Terminal.diffRemove(line)).append(nl);
         }
         for (String line : newLines) {
-            diff.append("\033[48;2;30;70;30;97m+ ").append(line).append("\033[0m\n");
+            diff.append(com.javagent.util.Terminal.diffAdd(line)).append(nl);
         }
         return diff.toString();
     }

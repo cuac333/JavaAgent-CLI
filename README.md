@@ -8,10 +8,10 @@
 - **Tools** — 8 个内置工具（文件读写、编辑、搜索、Shell、HTTP），支持 SPI 插件扩展
 - **SSE 流式推理** — 逐 token 实时输出，支持 reasoning_content 思维链
 - **Human-in-the-Loop** — 只读操作自动放行，写操作需用户显式批准
-- **上下文窗口管理** — 自动压缩历史轮次，保留首条意图和最近上下文
+- **Token 级上下文可视化** — `/context` 命令用真实 token 数计量上下文占用，彩色柱状图分类显示
 - **推理深度控制** — 4 级 effort（low/medium/high/max），通过 System Prompt 调控
 - **安全沙箱** — 工作区隔离、危险命令检测、敏感信息脱敏、连续失败保护
-- **跨平台** — Windows / macOS / Linux
+- **跨平台** — Windows（PowerShell/cmd.exe）/ macOS / Linux，统一处理 `\n` 和 `\r\n` 换行符
 
 ## 快速开始
 
@@ -22,14 +22,17 @@
 cd JavaAgent-CLI
 mvn clean package -DskipTests
 
-# 首次使用：将启动脚本链接到 PATH
+# Linux / macOS
 ln -s "$(pwd)/javaagentcli" ~/.local/bin/javaagentcli
+javaagentcli
 
-# 后续启动
-cd JavaAgent-CLI && javaagentcli 
+# Windows
+javaagentcli.cmd
+# 或直接运行：
+java --enable-native-access=ALL-UNNAMED -jar target/javaagent-cli-1.0.0.jar
 ```
 
-`javaagentcli` 自动传入 `--enable-native-access=ALL-UNNAMED` 消除 JVM 警告。也可直接 `java -jar target/javaagent-cli-1.0.0.jar --mock`。
+启动脚本自动传入 `--enable-native-access=ALL-UNNAMED` 消除 JVM 警告。也可直接 `java -jar target/javaagent-cli-1.0.0.jar --mock`。
 
 ## 使用方式
 
@@ -106,11 +109,10 @@ cd JavaAgent-CLI && javaagentcli
 |---|---|
 | **ReAct Loop** | 推理-行动交替循环，最多 12 轮（可配置），支持多步工具编排 |
 | **Human-in-the-Loop** | 只读操作自动放行，写操作需用户显式批准，外部路径默认拒绝 |
-| **Context Window Management** | 超过消息上限时自动压缩中间轮次，保留首条用户意图和最近上下文 |
 | **Streaming Inference** | SSE 逐 token 流式输出，支持 `reasoning_content` 思维链 |
 | **Effort Control** | 4 级推理深度（low/medium/high/max），通过 System Prompt 注入控制 |
 | **Failure Recovery** | 同一工具连续失败 3 次自动中断，防止无限循环 |
-| **Guardrails** | 10 类危险命令正则检测、工作区沙箱隔离、敏感信息脱敏 |
+| **Guardrails** | Unix 10 类 + Windows 10 类危险命令正则检测、工作区沙箱隔离、敏感信息脱敏 |
 
 ## 斜杠命令
 
@@ -128,7 +130,8 @@ cd JavaAgent-CLI && javaagentcli
 | `/bash on\|off` | 开关 Bash 工具 |
 | `/bypass on\|off` | 跳过所有工具审批确认 |
 | `/effort low\|medium\|high\|max` | 调节模型推理深度 |
-| `/context` | 查看上下文窗口使用情况 |
+| `/context` | 查看上下文 token 占用（彩色柱状图，按 System Prompt / Tools / Messages 分类） |
+| `/compact` | 压缩对话历史（LLM 摘要，保留关键上下文，节省 token） |
 | `/prompt show\|set\|reset` | 管理自定义 System Prompt |
 | `/approvals clear` | 清空审批缓存 |
 | `/reload` | 重新加载配置文件 |
@@ -146,7 +149,7 @@ cd JavaAgent-CLI && javaagentcli
 | `delete_file` | `rm` | 删除文件（禁止删除工作区根目录） | 读写 |
 | `grep` | `search`, `find` | 正则搜索（跳过 target/.git，最多 100 匹配） | 只读 |
 | `list_directory` | `ls`, `dir` | 递归列出目录内容 | 只读 |
-| `bash` | `shell`, `exec` | 执行 Shell 命令（默认禁用，10s 超时） | 读写 |
+| `bash` | `shell`, `exec` | 执行 Shell 命令（Linux/macOS 用 bash，Windows 优先 PowerShell → cmd.exe，默认禁用，10s 超时） | 读写 |
 | `network` | `http`, `fetch` | HTTP 请求 | 读写 |
 
 工具系统支持 SPI 插件扩展：实现 `ToolProvider` 接口并通过 `ServiceLoader` 自动发现。
@@ -174,7 +177,8 @@ agent.bypass_permissions=false
 
 # 上下文
 agent.system_prompt=             # 自定义 System Prompt
-agent.max_context_messages=100   # 上下文窗口大小
+agent.max_tokens=200000          # 模型上下文窗口 token 数（影响 /context 显示）
+agent.compact_threshold=0.8      # 自动压缩阈值（0.0-1.0），达到时 LLM 自动总结对话
 agent.rate_limit_qps=10          # API 请求限流（QPS）
 ```
 
@@ -184,7 +188,7 @@ agent.rate_limit_qps=10          # API 请求限流（QPS）
 
 - **工作区隔离** — 所有文件操作限制在项目目录内
 - **审批确认** — 写文件、删文件、bash、网络请求需要用户确认
-- **危险命令检测** — 10 类正则匹配（rm -rf、fork bomb、reverse shell 等）
+- **危险命令检测** — Unix 10 类 + Windows 10 类正则匹配（rm -rf、fork bomb、reverse shell、del /s、format、shutdown、bcdedit 等）
 - **敏感信息脱敏** — API Key/Token 自动过滤，防止泄漏到会话文件
 - **连续失败保护** — 同一工具连续失败 3 次自动中断
 
@@ -200,6 +204,7 @@ src/main/java/com/javagent/
 │   ├── Config.java                # Properties 配置管理
 │   ├── ConversationManager.java   # 多会话持久化、上下文压缩
 │   ├── ApprovalManager.java       # 权限策略引擎 + 审批缓存
+│   ├── ContextUsage.java          # 上下文 token 使用量数据模型
 │   └── ToolStats.java             # 工具调用指标（次数/耗时/错误率）
 ├── model/
 │   ├── ModelClient.java           # 模型客户端抽象接口
@@ -213,7 +218,9 @@ src/main/java/com/javagent/
 │   ├── GrepTool / ListDirectoryTool / BashTool / NetworkTool
 │   └── FileToolSupport.java       # 文件工具公共逻辑（路径校验、二进制检测）
 └── util/
-    ├── Terminal.java              # ANSI 终端渲染（自动检测色彩支持）
+    ├── Terminal.java              # ANSI 终端渲染 + splitLines 跨平台换行符处理
+    ├── TokenCounter.java          # jtokkit token 计数（cl100k_base 编码）
+    ├── ContextDisplay.java        # /context 彩色柱状图渲染
     ├── MarkdownRenderer.java      # Markdown → ANSI 转换
     ├── Sanitizer.java             # 敏感信息正则脱敏
     └── RateLimiter.java           # 令牌桶限流器

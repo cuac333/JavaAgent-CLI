@@ -67,14 +67,15 @@ public class NetworkTool implements Tool {
                     HttpResponse.BodyHandlers.ofString());
             
             StringBuilder result = new StringBuilder();
-            result.append("=== HTTP 响应 ===\n");
-            result.append("状态码: ").append(response.statusCode()).append("\n");
-            result.append("URL: ").append(response.uri()).append("\n");
-            result.append("方法: ").append(method.toUpperCase()).append("\n");
-            result.append("\n=== 响应头 ===\n");
-            response.headers().map().forEach((key, values) -> 
-                    result.append(key).append(": ").append(String.join(", ", values)).append("\n"));
-            result.append("\n=== 响应体 ===\n");
+            String nl = System.lineSeparator();
+            result.append("=== HTTP 响应 ===").append(nl);
+            result.append("状态码: ").append(response.statusCode()).append(nl);
+            result.append("URL: ").append(response.uri()).append(nl);
+            result.append("方法: ").append(method.toUpperCase()).append(nl);
+            result.append(nl).append("=== 响应头 ===").append(nl);
+            response.headers().map().forEach((key, values) ->
+                    result.append(key).append(": ").append(String.join(", ", values)).append(nl));
+            result.append(nl).append("=== 响应体 ===").append(nl);
             result.append(response.body());
             
             return ToolExecutionResult.success(result.toString());

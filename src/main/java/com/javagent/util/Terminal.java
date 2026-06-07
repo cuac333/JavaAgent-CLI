@@ -1,5 +1,7 @@
 package com.javagent.util;
 
+import java.util.regex.Pattern;
+
 /**
  * Terminal formatting utility — ANSI colors and styles for rich CLI output.
  *
@@ -176,7 +178,7 @@ public final class Terminal {
         if (text == null || text.isEmpty()) return "";
         String prefix = dim("│ ");
         StringBuilder sb = new StringBuilder();
-        for (String line : text.split("\\n", -1)) {
+        for (String line : splitLines(text)) {
             sb.append(prefix).append(line).append("\n");
         }
         // Remove trailing newline
@@ -184,6 +186,26 @@ public final class Terminal {
             sb.setLength(sb.length() - 1);
         }
         return sb.toString();
+    }
+
+    // Pre-compiled pattern for cross-platform line splitting
+    private static final Pattern LINE_PATTERN = Pattern.compile("\\r\\n|\\r|\\n");
+
+    /**
+     * Split text into lines, handling \n, \r\n, and \r line endings.
+     * Use this instead of text.split("\\n") for cross-platform compatibility.
+     */
+    public static String[] splitLines(String text) {
+        if (text == null) return new String[0];
+        return LINE_PATTERN.split(text, -1);
+    }
+
+    /**
+     * Split text into lines with a limit, handling \n, \r\n, and \r line endings.
+     */
+    public static String[] splitLines(String text, int limit) {
+        if (text == null) return new String[0];
+        return LINE_PATTERN.split(text, limit);
     }
 
     /** Strip all ANSI escape sequences from text. */

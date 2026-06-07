@@ -10,6 +10,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static com.javagent.util.Terminal.splitLines;
+
 /**
  * 写文件工具 —— 向文件写入文本内容
  *
@@ -108,7 +110,7 @@ public class WriteFileTool implements Tool {
             String summary = "Wrote " + content.length() + " characters to " + path.toAbsolutePath() + " (append=" + append + ").";
             String preview = buildPreview(content);
             if (preview != null) {
-                summary += "\n" + preview;
+                summary += System.lineSeparator() + preview;
             }
             return ToolExecutionResult.success(summary);
         } catch (IOException e) {
@@ -119,7 +121,7 @@ public class WriteFileTool implements Tool {
     private static final int PREVIEW_MAX_LINES = 60;
 
     private String buildPreview(String content) {
-        String[] lines = content.split("\\n", -1);
+        String[] lines = splitLines(content);
         if (lines.length == 0) return null;
 
         int show = Math.min(lines.length, PREVIEW_MAX_LINES);

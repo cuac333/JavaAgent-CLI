@@ -27,6 +27,11 @@ public class BashTool implements Tool {
     private static final int DEFAULT_TIMEOUT_SECONDS = 10;
     private static final int MAX_OUTPUT_CHARS = 50_000;
 
+    // Platform detection — computed once, invariant for JVM lifetime
+    private static final boolean IS_WINDOWS = System.getProperty("os.name", "").toLowerCase().contains("win");
+    // PowerShell availability — computed once on first bash invocation
+    private static volatile Boolean powershellAvailable;
+
     private static final ToolDefinition DEFINITION = new ToolDefinition(
             "bash",
             "Run a shell command. This tool is disabled by default and always requires approval.",
@@ -52,7 +57,7 @@ public class BashTool implements Tool {
 
     @Override
     public ToolExecutionResult execute(Map<String, Object> input) {
-        String command = stringValue(input.get("command"));
+        String command = FileToolSupport.stringValue(input.get("command"));
         if (command.isBlank()) {
             return ToolExecutionResult.error("bash requires a non-empty command.");
         }
@@ -60,7 +65,7 @@ public class BashTool implements Tool {
             return ToolExecutionResult.error("Command rejected by the built-in safety policy.");
         }
 
-        int timeoutSeconds = intValue(input.get("timeoutSeconds"), DEFAULT_TIMEOUT_SECONDS);
+        int timeoutSeconds = FileToolSupport.intValue(input.get("timeoutSeconds"), DEFAULT_TIMEOUT_SECONDS);
         ProcessBuilder processBuilder = buildProcess(command);
         processBuilder.redirectErrorStream(true);
 
@@ -98,11 +103,37 @@ public class BashTool implements Tool {
     }
 
     private static ProcessBuilder buildProcess(String command) {
-        boolean isWindows = System.getProperty("os.name", "").toLowerCase().contains("win");
-        if (isWindows) {
+        if (IS_WINDOWS) {
+            // Prefer PowerShell (more capable, syntax closer to Unix), fallback to cmd.exe
+            if (isPowerShellAvailable()) {
+                return new ProcessBuilder("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command);
+            }
             return new ProcessBuilder("cmd.exe", "/c", command);
         }
         return new ProcessBuilder("/bin/bash", "-lc", command);
+    }
+
+    /** Check if PowerShell is available, caching the result for JVM lifetime */
+    private static boolean isPowerShellAvailable() {
+        if (powershellAvailable != null) return powershellAvailable;
+        powershellAvailable = isCommandAvailable("powershell.exe");
+        return powershellAvailable;
+    }
+
+    /** Check if a command is available on the system PATH (runs once, result cached) */
+    private static boolean isCommandAvailable(String cmd) {
+        Process p = null;
+        try {
+            ProcessBuilder pb = new ProcessBuilder(IS_WINDOWS ? "where" : "which", cmd);
+            pb.redirectErrorStream(true);
+            p = pb.start();
+            boolean finished = p.waitFor(3, TimeUnit.SECONDS);
+            return finished && p.exitValue() == 0;
+        } catch (Exception e) {
+            return false;
+        } finally {
+            if (p != null) p.destroy();
+        }
     }
 
     private boolean looksDangerous(String command) {
@@ -111,6 +142,39 @@ public class BashTool implements Tool {
                 .replaceAll("[\"']", "")
                 .replaceAll("\\s+", " ")
                 .trim();
+
+        // ── Windows-specific dangerous commands ──
+        if (IS_WINDOWS) {
+            // Recursive delete
+            if (Pattern.matches(".*\\b(del|erase)\\s+(/s|/q|/s\\s+/q)(\\s|$).*", normalized)) return true;
+            if (Pattern.matches(".*\\b(rd|rmdir)\\s+(/s|/q|/s\\s+/q)(\\s|$).*", normalized)) return true;
+            if (Pattern.matches(".*Remove-Item\\s+(-Recurse|-Force|-Recurse\\s+-Force)(\\s|$).*", normalized)) return true;
+            if (Pattern.matches(".*rm\\s+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r)(\\s|$).*", normalized)) return true;
+
+            // Format disk
+            if (Pattern.matches(".*\\bformat\\s+[a-z]:(\\s|$).*", normalized)) return true;
+
+            // System halt / reboot (flags can appear anywhere)
+            if (Pattern.matches(".*\\b(shutdown|restart)\\b.*\\b(/s|/r|/f|/t)\\b.*", normalized)) return true;
+            if (Pattern.matches(".*Stop-Computer(\\s|$).*", normalized)) return true;
+            if (Pattern.matches(".*Restart-Computer(\\s|$).*", normalized)) return true;
+
+            // Kill critical processes (/f /t flags can appear anywhere)
+            if (Pattern.matches(".*\\btaskkill\\b.*\\b(/f|/t)\\b.*\\b(system|wininit|csrss|smss|lsass)\\b.*", normalized)) return true;
+
+            // Modify boot config
+            if (Pattern.matches(".*\\bbcdedit(\\s|$).*", normalized)) return true;
+
+            // Modify execution policy (security bypass)
+            if (Pattern.matches(".*Set-ExecutionPolicy\\s+(Bypass|Unrestricted|RemoteSigned)(\\s|$).*", normalized)) return true;
+
+            // Cipher wipe (secure delete)
+            if (Pattern.matches(".*\\bcipher\\s+/w(\\s|$).*", normalized)) return true;
+
+            // Take ownership of system dirs
+            if (Pattern.matches(".*\\btakeown\\b.*\\b(/s|/f)\\b.*", normalized)) return true;
+            if (Pattern.matches(".*icacls\\s+[a-z]:\\\\(\\s|$).*", normalized)) return true;
+        }
 
         // 1. Filesystem destruction: rm -rf targeting root, home, or wildcard
         if (Pattern.matches(".*rm\\s+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r)\\s*(/|~|\\.\\.?|\\*)\\s*.*", normalized)) {
@@ -163,23 +227,5 @@ public class BashTool implements Tool {
         if (Pattern.matches(".*python.*socket.*connect.*", normalized)) return true;
 
         return false;
-    }
-
-    private int intValue(Object value, int defaultValue) {
-        if (value instanceof Number number) {
-            return number.intValue();
-        }
-        if (value instanceof String raw) {
-            try {
-                return Integer.parseInt(raw);
-            } catch (NumberFormatException ignored) {
-                return defaultValue;
-            }
-        }
-        return defaultValue;
-    }
-
-    private String stringValue(Object value) {
-        return value == null ? "" : value.toString().trim();
     }
 }
