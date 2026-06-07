@@ -118,39 +118,9 @@ public class ConversationManager {
         return List.copyOf(messages);
     }
 
-    /**
-     * 上下文压缩 —— 当消息数量超过限制时，裁剪中间消息
-     *
-     * 策略：保留第一条用户消息（原始意图）+ 最近 N 条消息，
-     * 中间插入一条摘要标记消息。保证 tool call/result 配对不被拆散。
-     */
-    public void compactIfNeeded(int maxMessages) {
-        if (messages.size() <= maxMessages) {
-            return;
-        }
-
-        // 保留最近的 maxMessages - 1 条消息（留 1 个位置给摘要标记）
-        int keepFromEnd = maxMessages - 1;
-        int trimIndex = messages.size() - keepFromEnd;
-
-        // 向前调整，避免拆散 tool result 和它前面的 assistant tool-call
-        while (trimIndex > 1 && messages.get(trimIndex).role() == Role.TOOL) {
-            trimIndex--;
-        }
-
-        if (trimIndex <= 1) {
-            return; // 不需要压缩
-        }
-
-        int omitted = trimIndex - 1; // 减去保留的第 0 条
-        Message marker = Message.user("[System: " + omitted + " earlier messages omitted to fit context window.]");
-
-        List<Message> compacted = new ArrayList<>();
-        compacted.add(messages.getFirst()); // 保留第一条用户消息
-        compacted.add(marker);
-        compacted.addAll(messages.subList(trimIndex, messages.size()));
-
-        this.messages = compacted;
+    /** 替换整个消息列表（用于 compact 压缩） */
+    public void replaceMessages(List<Message> newMessages) {
+        this.messages = new ArrayList<>(newMessages);
     }
 
     public int messageCount() {

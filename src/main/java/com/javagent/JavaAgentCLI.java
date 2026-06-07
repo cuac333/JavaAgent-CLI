@@ -43,6 +43,7 @@ import java.util.Map;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.javagent.util.ContextDisplay;
 import com.javagent.util.MarkdownRenderer;
 
 import static com.javagent.util.Terminal.*;
@@ -261,6 +262,23 @@ public class JavaAgentCLI {
             }
             out.println();
             out.flush();
+
+            // Auto-compact when token usage exceeds threshold
+            double usagePercent = agent.contextUsage().usagePercent();
+            if (usagePercent >= config.compactThreshold()) {
+                out.println(yellow("  ⚠ 上下文已达 " + String.format("%.0f", usagePercent * 100) + "%，自动压缩中"));
+                Spinner compactSpinner = new Spinner(out, new AtomicBoolean(false), "压缩中...");
+                compactSpinner.start();
+                try {
+                    String compactResult = agent.compact();
+                    out.println(green("  ✓ ") + compactResult);
+                } catch (Exception e) {
+                    out.println(red("  ✗ ") + "压缩失败: " + e.getMessage());
+                } finally {
+                    compactSpinner.stop();
+                }
+                out.println();
+            }
         }
     }
 
@@ -287,6 +305,7 @@ public class JavaAgentCLI {
         c.register("/stats", "查看工具执行统计");
         c.register("/network", "网络请求工具");
         c.register("/context", "查看对话上下文使用情况");
+        c.register("/compact", "压缩对话历史（LLM 摘要）");
         c.register("/effort", "调节模型思考强度");
         return c;
     }
@@ -414,6 +433,18 @@ public class JavaAgentCLI {
                 }
             }
             case "/context" -> printContext(out);
+            case "/compact" -> {
+                Spinner compactSpinner = new Spinner(out, new AtomicBoolean(false), "压缩中...");
+                compactSpinner.start();
+                try {
+                    String result = agent.compact();
+                    out.println(green("  ✓ ") + result);
+                } catch (Exception e) {
+                    out.println(red("  ✗ ") + "压缩失败: " + e.getMessage());
+                } finally {
+                    compactSpinner.stop();
+                }
+            }
             case "/effort" -> handleEffortCommand(argument, out);
             default -> {
                 out.println(red("  ✗ ") + dim("未知命令。输入 /help 查看可用命令。"));
@@ -504,8 +535,8 @@ public class JavaAgentCLI {
         Object newObj = toolCall.input().get("new_string");
         if (oldObj == null || newObj == null) return;
 
-        String[] oldLines = oldObj.toString().split("\\n", -1);
-        String[] newLines = newObj.toString().split("\\n", -1);
+        String[] oldLines = splitLines(oldObj.toString());
+        String[] newLines = splitLines(newObj.toString());
 
         out.println(dim("    ") + dim("preview:"));
         int maxPreview = 6;
@@ -617,29 +648,16 @@ public class JavaAgentCLI {
     }
 
     private void printContext(PrintWriter out) {
-        int current = conversationManager.messageCount();
-        int max = config.maxContextMessages();
-        double ratio = max > 0 ? (double) current / max : 0;
-        int percent = (int) (ratio * 100);
+        var usage = agent.contextUsage();
+        String modelName = config.model();
+        ContextDisplay.display(out, usage, modelName);
 
-        // Visual bar: 30 chars wide
-        int barWidth = 30;
-        int filled = (int) (ratio * barWidth);
-        filled = Math.min(filled, barWidth);
-        String bar = green("█".repeat(filled)) + dim("░".repeat(barWidth - filled));
-
-        out.println();
-        out.println(bold("  对话上下文"));
-        out.println(dim("  ─────────────────────────────────────────────────"));
-        out.println("    " + dim("消息数: ") + contextColor(current, max) + dim(" / ") + dim(String.valueOf(max)));
-        out.println("    " + bar + " " + percentColor(percent));
+        // Session info
         out.println("    " + dim("会话: ") + cyan(conversationManager.currentSessionTitle()));
         out.println("    " + dim("ID: ") + dim(shortId(conversationManager.currentSessionId())));
-        if (ratio >= 0.8) {
+        if (usage.usagePercent() >= 0.8) {
             out.println("    " + yellow("⚠ 上下文即将满，建议使用 /clear 开始新会话"));
         }
-        out.println(dim("  ─────────────────────────────────────────────────"));
-        out.println();
     }
 
     private void handleEffortCommand(String argument, PrintWriter out) throws IOException {
@@ -673,18 +691,6 @@ public class JavaAgentCLI {
         };
         out.println("  思考强度已设为: " + display);
         refreshStatusLine(out);
-    }
-
-    private static String contextColor(int current, int max) {
-        double r = max > 0 ? (double) current / max : 0;
-        int p = (int) (r * 100);
-        String s = String.valueOf(current);
-        return p < 50 ? green(s) : p < 80 ? yellow(s) : red(s);
-    }
-
-    private static String percentColor(int percent) {
-        String s = percent + "%";
-        return percent < 50 ? green(s) : percent < 80 ? yellow(s) : red(s);
     }
 
     private void printStatus(PrintWriter out) {
@@ -742,6 +748,7 @@ public class JavaAgentCLI {
         printCmd(out, "/export", "导出当前对话为 Markdown");
         printCmd(out, "/stats", "查看工具执行统计");
         printCmd(out, "/context", "查看对话上下文使用情况");
+        printCmd(out, "/compact", "压缩对话历史（LLM 摘要，节省 token）");
         printCmd(out, "/effort low|medium|high|max", "调节模型思考强度");
         out.println(dim("  ─────────────────────────────────────────────────"));
         out.println();
@@ -773,11 +780,17 @@ public class JavaAgentCLI {
         private final AtomicBoolean running = new AtomicBoolean(false);
         private final AtomicBoolean paused;
         private final PrintWriter out;
+        private final String text;
         private Thread thread;
 
         Spinner(PrintWriter out, AtomicBoolean paused) {
+            this(out, paused, "思考中...");
+        }
+
+        Spinner(PrintWriter out, AtomicBoolean paused, String text) {
             this.out = out;
             this.paused = paused;
+            this.text = text;
         }
 
         void start() {
@@ -786,7 +799,7 @@ public class JavaAgentCLI {
                 int i = 0;
                 while (running.get()) {
                     if (!paused.get()) {
-                        out.print("\r  " + cyan(FRAMES[i % FRAMES.length]) + dim(" 思考中..."));
+                        out.print("\r  " + cyan(FRAMES[i % FRAMES.length]) + dim(" " + text));
                         out.flush();
                         i++;
                     }
@@ -799,7 +812,9 @@ public class JavaAgentCLI {
 
         void stop() {
             running.set(false);
-            out.print("\r" + " ".repeat(20) + "\r");
+            // braille(2) + space(1) + text(中文×2列宽 + ASCII×1) + margin
+            int clearWidth = 2 + 1 + text.length() * 2 + 4;
+            out.print("\r" + " ".repeat(clearWidth) + "\r");
             out.flush();
         }
     }
@@ -880,14 +895,14 @@ public class JavaAgentCLI {
                 case "list_directory" -> printListDirResult(content);
                 case "bash" -> printBashResult(content);
                 default -> {
-                    String firstLine = content.split("\\n", 2)[0];
+                    String firstLine = splitLines(content, 2)[0];
                     out.println(dim("  │ ") + dim(truncate(firstLine, 80)));
                 }
             }
         }
 
         private void printReadResult(String content) {
-            String[] lines = content.split("\\n");
+            String[] lines = splitLines(content);
             String summaryLine = "";
             int contentStart = 0;
             for (int i = 0; i < lines.length; i++) {
@@ -920,7 +935,7 @@ public class JavaAgentCLI {
         }
 
         private void printGrepResult(String content) {
-            String[] lines = content.split("\\n");
+            String[] lines = splitLines(content);
             String summaryLine = "";
             for (int i = lines.length - 1; i >= 0; i--) {
                 if (lines[i].contains("files_scanned=")) { summaryLine = lines[i]; break; }
@@ -956,7 +971,7 @@ public class JavaAgentCLI {
         }
 
         private void printListDirResult(String content) {
-            String[] lines = content.split("\\n");
+            String[] lines = splitLines(content);
             int shown = 0;
             for (String line : lines) {
                 if (line.startsWith("Directory:") || line.startsWith("-----") || line.contains("entries")) continue;
@@ -979,7 +994,7 @@ public class JavaAgentCLI {
         }
 
         private void printBashResult(String content) {
-            String[] lines = content.split("\\n");
+            String[] lines = splitLines(content);
             int shown = 0;
             for (String line : lines) {
                 if (shown++ >= 6) {

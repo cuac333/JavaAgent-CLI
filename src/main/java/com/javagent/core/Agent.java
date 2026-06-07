@@ -2,6 +2,7 @@ package com.javagent.core;
 
 import com.javagent.model.Message;
 import com.javagent.util.Sanitizer;
+import com.javagent.util.TokenCounter;
 import com.javagent.model.ModelClient;
 import com.javagent.model.ModelResponse;
 import com.javagent.model.TextStreamHandler;
@@ -13,6 +14,7 @@ import com.javagent.tools.ToolExecutionResult;
 import com.javagent.tools.ToolRegistry;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -32,12 +34,17 @@ public class Agent {
     private final ApprovalManager approvalManager;
     private final ToolStats toolStats = new ToolStats();
 
+    // Pre-computed token count for tool definitions (static, computed once)
+    private final int cachedToolTokens;
+
     public Agent(Config config, ModelClient modelClient, ToolRegistry toolRegistry, ConversationManager conversationManager) {
         this.config = config;
         this.modelClient = modelClient;
         this.toolRegistry = toolRegistry;
         this.conversationManager = conversationManager;
         this.approvalManager = new ApprovalManager(config);
+        // Pre-compute tool definition tokens (tools are static)
+        this.cachedToolTokens = TokenCounter.countTokens(buildToolsSection(toolRegistry.definitions()));
     }
 
     public ToolStats toolStats() {
@@ -64,7 +71,6 @@ public class Agent {
     public String processTurn(String userInput, ApprovalHandler approvalHandler,
                                TextStreamHandler streamHandler, ToolDisplayCallback displayCallback) {
         conversationManager.addUserMessage(userInput);
-        conversationManager.compactIfNeeded(config.maxContextMessages());
         String systemPrompt = buildSystemPrompt(toolRegistry.definitions());
 
         int consecutiveFailures = 0;
@@ -177,6 +183,11 @@ public class Agent {
     }
 
     private String buildSystemPrompt(List<ToolDefinition> tools) {
+        return buildBaseSystemPrompt() + "\n\n" + buildToolsSection(tools);
+    }
+
+    /** Build the base system prompt (identity, rules, effort, custom prompt) — no tool definitions. */
+    private String buildBaseSystemPrompt() {
         StringBuilder builder = new StringBuilder();
         builder.append("You are JavaAgent CLI, a concise coding assistant.\n");
         builder.append("You are an interactive agent that helps users with software engineering tasks.\n");
@@ -203,7 +214,13 @@ public class Agent {
             builder.append(config.customSystemPrompt()).append("\n");
         }
 
-        builder.append("\nAvailable tools:\n");
+        return builder.toString().trim();
+    }
+
+    /** Build the tools section of the system prompt. */
+    private String buildToolsSection(List<ToolDefinition> tools) {
+        StringBuilder builder = new StringBuilder();
+        builder.append("Available tools:\n");
         for (ToolDefinition tool : tools) {
             builder.append("- ").append(tool.name());
             if (!tool.aliases().isEmpty()) {
@@ -257,5 +274,85 @@ public class Agent {
 
     public void clearApprovalCache() {
         approvalManager.clearCache();
+    }
+
+    private static final int COMPACT_KEEP_RECENT = 6;
+    private static final int COMPACT_MIN_MESSAGES = 4;
+
+    private static final String COMPACT_SYSTEM_PROMPT = """
+            你是一个对话压缩助手。请将以下对话历史压缩为一段简洁的摘要。
+            保留：关键决策、重要事实、用户的核心需求、已完成的操作、待解决的问题。
+            忽略：工具调用的具体参数和输出细节、重复内容、格式化信息。
+            输出纯文本摘要，不要使用 Markdown 格式，不要加标题。
+            用中文输出。""";
+
+    /**
+     * 压缩对话历史 —— 用 LLM 总结中间消息，保留首条意图和最近消息。
+     *
+     * @return 压缩结果描述（含 token 变化）
+     */
+    public String compact() {
+        List<Message> context = conversationManager.currentContext();
+        if (context.size() < COMPACT_MIN_MESSAGES) {
+            return "消息数量不足（" + context.size() + " 条），无需压缩。";
+        }
+
+        // 保留：第 0 条（原始意图）+ 最近 N 条
+        int keepEnd = Math.min(COMPACT_KEEP_RECENT, context.size() - 1);
+        int summaryEnd = context.size() - keepEnd;
+
+        // 构建需要总结的消息
+        List<Message> toSummarize = context.subList(0, summaryEnd);
+        List<Message> toKeep = context.subList(summaryEnd, context.size());
+
+        // 发送给 LLM 做摘要（无 tools，无 agent loop）
+        StringBuilder convText = new StringBuilder();
+        for (Message msg : toSummarize) {
+            convText.append(msg.role()).append(": ").append(msg.content()).append("\n\n");
+        }
+
+        List<Message> summaryRequest = List.of(Message.user(convText.toString()));
+        ModelResponse response = modelClient.chat(COMPACT_SYSTEM_PROMPT, summaryRequest, List.of(), null);
+
+        if (response.isError()) {
+            return "压缩失败：" + response.errorMessage();
+        }
+
+        String summary = response.content();
+
+        // 构建新消息列表：摘要 + 最近消息
+        List<Message> newMessages = new ArrayList<>();
+        newMessages.add(Message.system("[对话摘要] " + summary));
+        newMessages.addAll(toKeep);
+
+        // 替换
+        int oldTokens = contextUsage().totalTokens();
+        conversationManager.replaceMessages(newMessages);
+        int newTokens = contextUsage().totalTokens();
+
+        return "压缩完成：保留 " + toKeep.size() + " 条最近消息 + 摘要，"
+                + "token " + TokenCounter.formatTokens(oldTokens) + " → " + TokenCounter.formatTokens(newTokens)
+                + "（节省 " + TokenCounter.formatTokens(oldTokens - newTokens) + "）";
+    }
+
+    /**
+     * Calculate current context usage breakdown by token count.
+     * Tool definition tokens are pre-computed (static); only the base prompt
+     * and messages are tokenized on each call.
+     */
+    public ContextUsage contextUsage() {
+        int sysTokens = TokenCounter.countTokens(buildBaseSystemPrompt());
+        int msgTokens = 0;
+        for (Message msg : conversationManager.currentContext()) {
+            msgTokens += TokenCounter.countTokens(msg.content()) + 4;
+            if (msg.toolCalls() != null) {
+                for (ToolCall tc : msg.toolCalls()) {
+                    msgTokens += TokenCounter.countTokens(tc.toString());
+                }
+            }
+        }
+        int total = sysTokens + cachedToolTokens + msgTokens;
+        return new ContextUsage(sysTokens, cachedToolTokens, msgTokens,
+                total, config.maxTokens());
     }
 }
