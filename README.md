@@ -9,7 +9,7 @@
 - **SSE 流式推理** — 逐 token 实时输出，支持 reasoning_content 思维链
 - **Human-in-the-Loop** — 只读操作自动放行，写操作需用户显式批准
 - **Token 级上下文可视化** — `/context` 命令用真实 token 数计量上下文占用，彩色柱状图分类显示
-- **推理深度控制** — 4 级 effort（low/medium/high/max），通过 System Prompt 调控
+- **推理深度控制** — 5 级 effort（low/high/xhigh/max/ultra），交互式滑块选择，ultra 霓虹特效
 - **安全沙箱** — 工作区隔离、危险命令检测、敏感信息脱敏、连续失败保护
 - **跨平台** — Windows（PowerShell/cmd.exe）/ macOS / Linux，统一处理 `\n` 和 `\r\n` 换行符
 
@@ -110,7 +110,7 @@ java --enable-native-access=ALL-UNNAMED -jar target/javaagent-cli-1.0.0.jar
 | **ReAct Loop** | 推理-行动交替循环，最多 12 轮（可配置），支持多步工具编排 |
 | **Human-in-the-Loop** | 只读操作自动放行，写操作需用户显式批准，外部路径默认拒绝 |
 | **Streaming Inference** | SSE 逐 token 流式输出，支持 `reasoning_content` 思维链 |
-| **Effort Control** | 4 级推理深度（low/medium/high/max），通过 System Prompt 注入控制 |
+| **Effort Control** | 5 级推理深度（low/high/xhigh/max/ultra），交互式滑块选择，ultra 霓虹动画 |
 | **Failure Recovery** | 同一工具连续失败 3 次自动中断，防止无限循环 |
 | **Guardrails** | Unix 10 类 + Windows 10 类危险命令正则检测、工作区沙箱隔离、敏感信息脱敏 |
 
@@ -129,7 +129,7 @@ java --enable-native-access=ALL-UNNAMED -jar target/javaagent-cli-1.0.0.jar
 | `/stream on\|off` | 开关流式输出 |
 | `/bash on\|off` | 开关 Bash 工具 |
 | `/bypass on\|off` | 跳过所有工具审批确认 |
-| `/effort low\|medium\|high\|max` | 调节模型推理深度 |
+| `/effort [low\|high\|xhigh\|max\|ultra]` | 调节模型推理深度（交互式滑块，←→ 选择，ultra 霓虹特效） |
 | `/context` | 查看上下文 token 占用（彩色柱状图，按 System Prompt / Tools / Messages 分类） |
 | `/compact` | 压缩对话历史（LLM 摘要，保留关键上下文，节省 token） |
 | `/prompt show\|set\|reset` | 管理自定义 System Prompt |
@@ -164,7 +164,7 @@ agent.mock_mode=true
 agent.api_key=
 agent.base_url=https://api.openai.com/v1
 agent.model=gpt-5.4-mini
-agent.effort=medium              # 推理深度：low | medium | high | max
+agent.effort=high               # 推理深度：low | high | xhigh | max | ultra
 
 # 行为
 agent.auto_save=true
@@ -218,7 +218,7 @@ src/main/java/com/javagent/
 │   ├── GrepTool / ListDirectoryTool / BashTool / NetworkTool
 │   └── FileToolSupport.java       # 文件工具公共逻辑（路径校验、二进制检测）
 └── util/
-    ├── Terminal.java              # ANSI 终端渲染 + splitLines 跨平台换行符处理
+    ├── Terminal.java              # ANSI 终端渲染 + splitLines 跨平台换行符处理 + neon 霓虹特效 + CJK displayWidth
     ├── TokenCounter.java          # jtokkit token 计数（cl100k_base 编码）
     ├── ContextDisplay.java        # /context 彩色柱状图渲染
     ├── MarkdownRenderer.java      # Markdown → ANSI 转换

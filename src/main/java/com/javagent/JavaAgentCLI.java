@@ -660,37 +660,195 @@ public class JavaAgentCLI {
         }
     }
 
+    private static final String[] EFFORT_LEVELS = {"low", "high", "xhigh", "max", "ultra"};
+    private static final String[] EFFORT_DESC = {"简短直接，跳过解释", "逐步推理，详细解释", "深度分析，多角度探索", "最大深度，考虑所有边界", "极限推理，穷举一切可能"};
+    // Bar layout: "Speed ════════════════════════════════════════ Intelligence"
+    //              ^4    ^15       ^27       ^39       ^51
+    // Labels placed at fixed positions to align under the bar
+    private static final int BAR_WIDTH = 57;
+    private static final int[] LEVEL_POS = {4, 15, 27, 39, 51};
+
     private void handleEffortCommand(String argument, PrintWriter out) throws IOException {
-        if (argument.isBlank()) {
-            String current = config.effort();
-            String display = switch (current) {
-                case "low" -> dim("low") + dim(" — 简短直接，跳过解释");
-                case "medium" -> cyan("medium") + dim(" — 平衡详细度");
-                case "high" -> yellow("high") + dim(" — 逐步推理，详细解释");
-                case "max" -> red("max") + dim(" — 最大深度推理，考虑所有边界情况");
-                default -> dim(current);
-            };
-            out.println("  当前思考强度: " + display);
-            out.println(dim("  用法: /effort low|medium|high|max"));
-            out.flush();
+        // Direct argument mode: /effort <level>
+        if (!argument.isBlank()) {
+            String level = argument.toLowerCase();
+            if (!Config.isValidEffort(level)) {
+                out.println(yellow("  用法: /effort [low|high|xhigh|max|ultra]"));
+                out.flush();
+                return;
+            }
+            config.setEffort(level);
+            printEffortSet(out, level);
+            refreshStatusLine(out);
             return;
         }
-        String level = argument.toLowerCase();
-        if (!level.equals("low") && !level.equals("medium") && !level.equals("high") && !level.equals("max")) {
-            out.println(yellow("  用法: /effort low|medium|high|max"));
-            out.flush();
-            return;
+
+        // Interactive selector mode: /effort (no argument)
+        int selected = java.util.Arrays.asList(EFFORT_LEVELS).indexOf(config.effort());
+        if (selected < 0) selected = 1; // default to "high"
+
+        out.println();
+        printEffortBar(out, selected);
+        out.flush();
+
+        // Enter raw mode for arrow key navigation
+        org.jline.terminal.Attributes savedAttrs = terminal.enterRawMode();
+        try {
+            java.io.Reader reader = terminal.reader();
+            while (true) {
+                int ch = reader.read();
+                if (ch == -1) break;
+
+                if (ch == 27) { // ESC sequence
+                    int next = reader.read();
+                    if (next == -1) break;
+                    if (next == '[') {
+                        int arrow = reader.read();
+                        if (arrow == 'D') { // Left
+                            selected = (selected - 1 + EFFORT_LEVELS.length) % EFFORT_LEVELS.length;
+                        } else if (arrow == 'C') { // Right
+                            selected = (selected + 1) % EFFORT_LEVELS.length;
+                        }
+                    } else {
+                        break; // Standalone ESC — cancel
+                    }
+                } else if (ch == 'h' || ch == 'H') { // vim left
+                    selected = (selected - 1 + EFFORT_LEVELS.length) % EFFORT_LEVELS.length;
+                } else if (ch == 'l' || ch == 'L') { // vim right
+                    selected = (selected + 1) % EFFORT_LEVELS.length;
+                } else if (ch == '\n' || ch == '\r') { // Enter — confirm
+                    String level = EFFORT_LEVELS[selected];
+                    config.setEffort(level);
+                    clearBarLines(out, 5);
+                    if ("ultra".equals(level)) {
+                        printNeonConfirm(out);
+                    } else {
+                        printEffortSet(out, level);
+                    }
+                    refreshStatusLine(out);
+                    return;
+                } else if (ch == 'q' || ch == 'Q' || ch == 3 || ch == 4) { // q/Ctrl-C/Ctrl-D
+                    break;
+                } else if (ch >= '1' && ch <= '5') { // number shortcut
+                    selected = ch - '1';
+                    String level = EFFORT_LEVELS[selected];
+                    config.setEffort(level);
+                    clearBarLines(out, 5);
+                    if ("ultra".equals(level)) {
+                        printNeonConfirm(out);
+                    } else {
+                        printEffortSet(out, level);
+                    }
+                    refreshStatusLine(out);
+                    return;
+                }
+
+                // Re-render bar
+                clearBarLines(out, 5);
+                printEffortBar(out, selected);
+                out.flush();
+            }
+        } finally {
+            terminal.setAttributes(savedAttrs);
         }
-        config.setEffort(level);
+    }
+
+    /** Render the horizontal effort bar with marker. */
+    private void printEffortBar(PrintWriter out, int selected) {
+        // Line 1: "Speed" left, "Intelligence" right
+        String header = "  " + dim("Speed")
+                + " ".repeat(Math.max(0, BAR_WIDTH - 5 - 11))
+                + dim("Intelligence");
+        out.println(header);
+
+        // Line 2: ════════════════════════════════════════▲══
+        int markerPos = LEVEL_POS[selected];
+        StringBuilder bar = new StringBuilder("  ");
+        for (int i = 0; i < BAR_WIDTH; i++) {
+            if (i == markerPos) {
+                bar.append(bold(cyan("▲")));
+            } else {
+                bar.append(dim("═"));
+            }
+        }
+        out.println(bar.toString());
+
+        // Line 3: level labels aligned to positions (CJK-aware)
+        StringBuilder labels = new StringBuilder("  ");
+        int col = 2;
+        for (int i = 0; i < EFFORT_LEVELS.length; i++) {
+            int pos = LEVEL_POS[i];
+            while (col < pos) { labels.append(' '); col++; }
+            String name = EFFORT_LEVELS[i];
+            if (i == selected) {
+                if ("ultra".equals(name)) labels.append(neon(name, 0));
+                else labels.append(bold(formatEffortColor(name, true)));
+            } else {
+                labels.append(formatEffortColor(name, false));
+            }
+            col += displayWidth(name);
+        }
+        out.println(labels.toString());
+
+        // Line 4: selected level description
+        String desc = EFFORT_DESC[selected];
+        String levelColor = switch (EFFORT_LEVELS[selected]) {
+            case "low" -> dim("low");
+            case "high" -> yellow("high");
+            case "xhigh" -> magenta("xhigh");
+            case "max" -> red("max");
+            case "ultra" -> neon("ultra", 0);
+            default -> EFFORT_LEVELS[selected];
+        };
+        out.println("  " + bold(levelColor) + dim(" — " + desc));
+
+        // Line 5: hint
+        out.println("  " + dim("← → 选择  1-5 快选  Enter 确认  Esc 取消"));
+    }
+
+    /** Get colored effort name (without bold). */
+    private String formatEffortColor(String level, boolean active) {
+        return switch (level) {
+            case "low" -> dim("low");
+            case "high" -> active ? yellow("high") : dim("high");
+            case "xhigh" -> active ? magenta("xhigh") : dim("xhigh");
+            case "max" -> active ? red("max") : dim("max");
+            case "ultra" -> active ? neon("ultra", 0) : dim("ultra");
+            default -> level;
+        };
+    }
+
+    /** Print neon confirmation animation for ultra selection. */
+    private void printNeonConfirm(PrintWriter out) {
+        String label = "⚡ ULTRA MODE ⚡";
+        for (int frame = 0; frame < 4; frame++) {
+            out.print("\r  思考强度已设为: " + neonGlow(label, frame));
+            out.flush();
+            try { Thread.sleep(120); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
+        }
+        out.println("\r  思考强度已设为: " + neon(label, 0) + dim("  — 极限推理，穷举一切可能"));
+        out.flush();
+    }
+
+    /** Clear N lines above cursor for bar re-rendering. */
+    private void clearBarLines(PrintWriter out, int lines) {
+        for (int i = 0; i < lines; i++) {
+            out.print("\033[1A\033[2K");
+        }
+        out.flush();
+    }
+
+    /** Print effort-set confirmation for non-ultra levels. */
+    private void printEffortSet(PrintWriter out, String level) {
         String display = switch (level) {
             case "low" -> dim("low") + dim(" — 简短直接");
-            case "medium" -> cyan("medium") + dim(" — 平衡详细度");
             case "high" -> yellow("high") + dim(" — 详细推理");
+            case "xhigh" -> magenta("xhigh") + dim(" — 深度分析");
             case "max" -> red("max") + dim(" — 最大深度");
+            case "ultra" -> neon("ultra", 0) + dim(" — 极限推理");
             default -> level;
         };
         out.println("  思考强度已设为: " + display);
-        refreshStatusLine(out);
     }
 
     private void printStatus(PrintWriter out) {
@@ -705,9 +863,10 @@ public class JavaAgentCLI {
         printRow(out, "审批缓存", agent.approvalCacheSize() + " 条记录");
         String effortDisplay = switch (config.effort()) {
             case "low" -> dim("low");
-            case "medium" -> cyan("medium");
             case "high" -> yellow("high");
+            case "xhigh" -> magenta("xhigh");
             case "max" -> red("max");
+            case "ultra" -> neon("ultra", 0);
             default -> dim(config.effort());
         };
         printRow(out, "思考强度", effortDisplay);
@@ -749,7 +908,7 @@ public class JavaAgentCLI {
         printCmd(out, "/stats", "查看工具执行统计");
         printCmd(out, "/context", "查看对话上下文使用情况");
         printCmd(out, "/compact", "压缩对话历史（LLM 摘要，节省 token）");
-        printCmd(out, "/effort low|medium|high|max", "调节模型思考强度");
+        printCmd(out, "/effort [low|high|xhigh|max|ultra]", "调节模型思考强度");
         out.println(dim("  ─────────────────────────────────────────────────"));
         out.println();
         out.println(dim("  提示:"));
