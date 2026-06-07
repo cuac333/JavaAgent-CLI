@@ -78,6 +78,34 @@ final class BannerPrinter {
         out.flush();
     }
 
+    /**
+     * Print a compact one-line status bar (can be called after config changes).
+     */
+    static void printStatusLine(Config config, ToolRegistry toolRegistry, PrintWriter out) {
+        String mode = config.isMockMode() ? yellow("mock") : green("real");
+        String model = cyan(config.model());
+        int toolCount = toolRegistry.definitions().size();
+        String stream = config.streamResponses() ? green("开") : dim("关");
+        String bash = config.bashEnabled() ? green("开") : dim("关");
+        String bypass = config.bypassPermissions() ? green("开") : dim("关");
+        String effort = switch (config.effort()) {
+            case "low" -> dim("low");
+            case "medium" -> cyan("medium");
+            case "high" -> yellow("high");
+            case "max" -> red("max");
+            default -> dim(config.effort());
+        };
+
+        out.println(dim("  ─ ") + mode + dim(" · ") + model + dim(" · ")
+                + toolCount + " tools" + dim(" │ ")
+                + dim("流式:") + stream + dim(" │ ")
+                + dim("Bash:") + bash + dim(" │ ")
+                + dim("审批:") + bypass + dim(" │ ")
+                + dim("思考:") + effort
+                + dim(" ─"));
+        out.flush();
+    }
+
     private void printRow(PrintWriter out, String v, String leftText, int leftCol, int rightCol,
                            String rightCmd, String rightDesc) {
         int visLen = displayWidth(stripAnsi(leftText));

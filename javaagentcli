@@ -1,0 +1,12 @@
+#!/bin/bash
+# Resolve real script path (follows symlinks)
+SOURCE="$0"
+while [ -L "$SOURCE" ]; do
+    DIR="$(cd "$(dirname "$SOURCE")" && pwd)"
+    SOURCE="$(readlink "$SOURCE")"
+    [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+PROJECT_DIR="$(cd "$(dirname "$SOURCE")" && pwd)"
+
+exec java --enable-native-access=ALL-UNNAMED \
+    -jar "$PROJECT_DIR/target/javaagent-cli-1.0.0.jar" "$@"
