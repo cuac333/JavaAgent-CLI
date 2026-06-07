@@ -19,6 +19,7 @@ com.javagent
 │   ├── ApprovalHandler       # 审批回调接口
 │   ├── ApprovalDecision      # 审批决策枚举
 │   ├── ApprovalOutcome       # 审批结果
+│   ├── ContextUsage          # 上下文 token 使用量
 │   └── ToolStats             # 工具执行统计
 ├── model/                    # 数据模型
 │   ├── Role                  # 角色枚举
@@ -47,7 +48,9 @@ com.javagent
 │   ├── BashTool              # Shell 命令
 │   └── NetworkTool           # HTTP 请求
 └── util/                     # 工具包
-    ├── Terminal              # ANSI 终端颜色
+    ├── Terminal              # ANSI 终端颜色 + splitLines 跨平台换行
+    ├── TokenCounter          # jtokkit token 计数
+    ├── ContextDisplay        # /context 彩色柱状图
     ├── MarkdownRenderer      # Markdown 渲染
     ├── Sanitizer             # 敏感信息过滤
     └── RateLimiter           # 速率限制
@@ -124,6 +127,9 @@ com.javagent
 - `/export` → 导出当前对话为 Markdown
 - `/stats` → 查看工具执行统计
 - `/network` → 网络请求工具
+- `/context` → 查看上下文 token 占用（彩色柱状图）
+- `/compact` → 压缩对话历史（LLM 摘要，节省 token）
+- `/effort` → 调节模型思考强度
 - `/status` → 显示当前状态信息
 
 #### promptApproval
@@ -154,8 +160,7 @@ com.javagent
 
 #### processTurn（核心方法）
 1. 把用户消息加入对话历史
-2. 执行上下文压缩 `compactIfNeeded(config.maxContextMessages())`
-3. 构建系统提示词（告诉 AI 它是谁、有哪些工具可用、编辑工具使用规范）
+2. 构建系统提示词（告诉 AI 它是谁、有哪些工具可用、编辑工具使用规范）
 4. 进入 Agent Loop（最多循环 maxIterations 次）：
    - 根据配置决定是否启用流式输出
    - 调用模型客户端发送请求，获取响应
@@ -185,6 +190,19 @@ com.javagent
 4. 如果有自定义提示词则追加
 5. 列出所有可用工具的名称、描述、别名和必填参数
 
+#### compact
+1. 检查消息数量是否足够（至少 4 条）
+2. 保留最近 6 条消息，其余发送给 LLM 做摘要
+3. LLM 生成中文摘要（保留关键决策、重要事实、用户核心需求）
+4. 构建新消息列表：摘要 + 最近消息
+5. 替换对话历史，返回压缩结果（token 节省量）
+
+#### contextUsage
+1. 计算系统提示词 token 数（缓存）
+2. 计算工具定义 token 数（缓存）
+3. 计算消息 token 数（实时）
+4. 返回 ContextUsage 数据模型
+
 #### autoSaveQuietly
 - 如果配置了自动保存，则保存当前会话
 - 保存失败时静默忽略（写日志），不影响主流程
@@ -211,7 +229,9 @@ com.javagent
 | agent.approval_cache | 是否启用审批缓存 | true |
 | agent.allow_external_paths | 是否允许访问工作区外路径 | false |
 | agent.bypass_permissions | 是否跳过所有工具审批确认 | false |
-| agent.max_context_messages | 最大上下文消息数量 | 100 |
+| agent.effort | 推理深度 | medium |
+| agent.max_tokens | 上下文窗口 token 数 | 200000 |
+| agent.compact_threshold | 自动压缩阈值 | 0.8 |
 | agent.rate_limit_qps | API 请求速率限制（每秒请求数） | 10 |
 
 **方法流程**：
@@ -254,9 +274,8 @@ com.javagent
 #### addUserMessage / addAssistantMessage / addAssistantToolCallMessage / addToolResultMessage
 - 分别创建对应角色的消息对象，加入当前消息列表
 
-#### compactIfNeeded
-- 如果消息数量超过 maxContextMessages，压缩旧消息
-- 保留系统提示词和最近的消息
+#### replaceMessages
+- 替换当前消息列表（用于 compact 压缩后更新）
 
 #### currentContext
 - 返回当前消息列表的不可变副本

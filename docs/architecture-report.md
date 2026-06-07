@@ -41,7 +41,9 @@ flowchart TB
     end
 
     subgraph Util["工具包"]
-        TU["Terminal<br/>ANSI颜色"]
+        TU["Terminal<br/>ANSI颜色+splitLines"]
+        TK["TokenCounter<br/>jtokkit token计数"]
+        CD["ContextDisplay<br/>/context柱状图"]
         TM["MarkdownRenderer<br/>MD渲染"]
         SA["Sanitizer<br/>敏感信息脱敏"]
         RL["RateLimiter<br/>速率限制"]
@@ -67,20 +69,21 @@ flowchart TB
 
 核心类职责：
 
-- `JavaAgentCLI`：命令行入口，处理 `/help`、`/status`、`/mode` 等 18 个斜杠命令，JLine3 终端支持。
-- `Agent`：同步 agent loop，负责模型调用、工具执行、结果回灌，支持 thinking 模型推理链。
+- `JavaAgentCLI`：命令行入口，处理 `/help`、`/status`、`/mode`、`/context`、`/compact`、`/effort` 等 21 个斜杠命令，JLine3 终端支持。
+- `Agent`：同步 agent loop，负责模型调用、工具执行、结果回灌，支持 thinking 模型推理链，LLM 摘要压缩。
 - `ModelClient`：模型客户端接口，当前有 mock 和 OpenAI-compatible 两种实现，支持 SSE 流式输出。
 - `ToolRegistry`：注册和查找工具，支持按名称和别名查找。
 - `ApprovalManager`：审批策略、路径策略、审批缓存、bypass 模式。
-- `ConversationManager`：上下文管理、多会话持久化、上下文压缩。
-- `Config`：配置加载和默认值管理，14 项配置参数。
+- `ConversationManager`：上下文管理、多会话持久化、消息替换（用于 compact）。
+- `Config`：配置加载和默认值管理，16 项配置参数。
+- `ContextUsage`：上下文 token 使用量数据模型。
 - `ToolStats`：工具执行统计（调用次数、总耗时、错误次数、平均耗时）。
 
 ## 3. 主运行流程
 
 1. 用户在 CLI 输入请求。
 2. `JavaAgentCLI` 把请求交给 `Agent.processTurn`。
-3. `Agent` 构建 system prompt，执行 `compactIfNeeded` 上下文压缩，把历史上下文、工具定义传给 `ModelClient`。
+3. `Agent` 构建 system prompt，把历史上下文、工具定义传给 `ModelClient`。
 4. `ModelClient` 返回普通文本、`tool_calls` 或推理内容（thinking 模型）。
 5. 如果是普通文本，直接输出并保存到会话。
 6. 如果是 `tool_calls`：
@@ -327,7 +330,9 @@ sequenceDiagram
 | `agent.approval_cache` | 是否启用审批缓存 | `true` |
 | `agent.allow_external_paths` | 是否允许访问工作区外路径 | `false` |
 | `agent.bypass_permissions` | 是否跳过所有工具审批确认 | `false` |
-| `agent.max_context_messages` | 最大上下文消息数量 | `100` |
+| `agent.effort` | 推理深度 | `medium` |
+| `agent.max_tokens` | 上下文窗口 token 数 | `200000` |
+| `agent.compact_threshold` | 自动压缩阈值 | `0.8` |
 | `agent.rate_limit_qps` | API 请求速率限制（每秒请求数） | `10` |
 
 配置文件查找顺序：
@@ -410,7 +415,9 @@ real 模式可以证明模型客户端是可替换的，支持 SSE 流式输出�
 - SPI plugin system
 - consecutive failure protection
 - rate limiting (token bucket)
-- context compression
+- LLM-based context compaction
+- token-level context visualization (jtokkit cl100k_base)
+- cross-platform (Windows PowerShell/cmd.exe + macOS + Linux)
 - sensitive information sanitization
 - pure Java implementation
 - executable fat jar
