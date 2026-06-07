@@ -188,6 +188,16 @@ public class Agent {
         builder.append("If the user request is vague, ask for clarification instead of making assumptions.\n");
         builder.append("Strictly distinguish: only answer questions with what/why/how etc. without writing/modifying code;"
         +" act only when explicit action words like implement/write/fix/modify appear and user requests execution; when in doubt, always answer first, never act unasked.\n");
+
+        // Effort level — controls reasoning depth
+        String effort = config.effort();
+        switch (effort) {
+            case "low" -> builder.append("Be brief and direct. Skip explanations unless asked. Minimal reasoning.\n");
+            case "medium" -> builder.append("Provide balanced responses with moderate detail.\n");
+            case "high" -> builder.append("Think step-by-step. Provide thorough analysis and detailed explanations.\n");
+            case "max" -> builder.append("Maximize reasoning depth. Consider all edge cases, alternatives, and implications before responding. Be extremely thorough.\n");
+        }
+
         if (!config.customSystemPrompt().isBlank()) {
             builder.append("\nAdditional instructions:\n");
             builder.append(config.customSystemPrompt()).append("\n");
