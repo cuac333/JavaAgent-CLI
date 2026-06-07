@@ -90,9 +90,10 @@ final class BannerPrinter {
         String bypass = config.bypassPermissions() ? green("开") : dim("关");
         String effort = switch (config.effort()) {
             case "low" -> dim("low");
-            case "medium" -> cyan("medium");
             case "high" -> yellow("high");
+            case "xhigh" -> magenta("xhigh");
             case "max" -> red("max");
+            case "ultra" -> neon("ultra", 0);
             default -> dim(config.effort());
         };
 

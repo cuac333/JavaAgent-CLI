@@ -123,7 +123,7 @@ public class Config {
         properties.putIfAbsent(KEY_ALLOW_EXTERNAL_PATHS, "false");
         properties.putIfAbsent(KEY_BYPASS_PERMISSIONS, "false");
         properties.putIfAbsent(KEY_RATE_LIMIT_QPS, "10");
-        properties.putIfAbsent(KEY_EFFORT, "medium");
+        properties.putIfAbsent(KEY_EFFORT, "high");
         properties.putIfAbsent(KEY_MAX_TOKENS, "200000");
         properties.putIfAbsent(KEY_COMPACT_THRESHOLD, "0.8");
     }
@@ -266,7 +266,7 @@ public class Config {
     }
 
     public String effort() {
-        return properties.getProperty(KEY_EFFORT, "medium").toLowerCase();
+        return properties.getProperty(KEY_EFFORT, "high").toLowerCase();
     }
 
     public int maxTokens() {
@@ -279,11 +279,16 @@ public class Config {
 
     public void setEffort(String effort) throws IOException {
         String level = effort.toLowerCase();
-        if (!level.equals("low") && !level.equals("medium") && !level.equals("high") && !level.equals("max")) {
-            throw new IllegalArgumentException("effort must be low|medium|high|max");
+        if (!isValidEffort(level)) {
+            throw new IllegalArgumentException("effort must be low|high|xhigh|max|ultra");
         }
         properties.setProperty(KEY_EFFORT, level);
         save();
+    }
+
+    public static boolean isValidEffort(String level) {
+        return level.equals("low") || level.equals("high") || level.equals("xhigh")
+                || level.equals("max") || level.equals("ultra");
     }
 
     public void reload() throws IOException {
