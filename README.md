@@ -32,7 +32,7 @@ javaagentcli.cmd
 java --enable-native-access=ALL-UNNAMED -jar target/javaagent-cli-1.0.0.jar
 ```
 
-启动脚本自动传入 `--enable-native-access=ALL-UNNAMED` 消除 JVM 警告。也可直接 `java -jar target/javaagent-cli-1.0.0.jar --mock`。
+启动脚本自动传入 `--enable-native-access=ALL-UNNAMED` 消除 JVM 警告。直接运行时需手动添加该参数：`java --enable-native-access=ALL-UNNAMED -jar target/javaagent-cli-1.0.0.jar --mock`。
 
 ## 使用方式
 
