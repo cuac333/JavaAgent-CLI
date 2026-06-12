@@ -34,7 +34,7 @@ final class FileToolSupport {
         if (workspaceRoot == null) return null;
         Path normalized = path.toAbsolutePath().normalize();
         if (!normalized.startsWith(workspaceRoot)) {
-            return "Access denied: path is outside the workspace: " + path;
+            return "访问被拒绝：路径在工作区之外：" + path;
         }
         return null;
     }

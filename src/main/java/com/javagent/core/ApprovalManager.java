@@ -54,17 +54,17 @@ public class ApprovalManager {
             return ApprovalOutcome.denied(policyCheck.reason());
         }
 
-        // Bypass mode: auto-approve all tools that aren't hard-denied
+        // 绕过模式: 自动批准所有未被硬拒绝的工具
         if (config.bypassPermissions()) {
-            return ApprovalOutcome.approved("Bypass permissions mode enabled.");
+            return ApprovalOutcome.approved("已启用权限绕过模式。");
         }
 
         String cacheKey = cacheKey(definition.name(), toolCall.input());
         if (config.approvalCacheEnabled() && approvalCache.containsKey(cacheKey)) {
             ApprovalDecision cached = approvalCache.get(cacheKey);
             return cached.isApproved()
-                    ? ApprovalOutcome.cachedApproved("Approval cache reused for " + definition.name() + ".")
-                    : ApprovalOutcome.cachedDenied("Approval cache denied " + definition.name() + ".");
+                    ? ApprovalOutcome.cachedApproved("审批缓存复用于 " + definition.name() + ".")
+                    : ApprovalOutcome.cachedDenied("审批缓存拒绝了 " + definition.name() + ".");
         }
 
         ApprovalDecision decision = approvalHandler.request(toolCall);
@@ -73,12 +73,12 @@ public class ApprovalManager {
         }
 
         if (decision.isApproved()) {
-            return ApprovalOutcome.approved("Approved by the user.");
+            return ApprovalOutcome.approved("用户已批准。");
         }
 
         String reason = decision == ApprovalDecision.CANCELLED
-                ? "Tool execution was cancelled by the user for " + definition.name() + "."
-                : "Tool execution was denied by the user for " + definition.name() + ".";
+                ? "用户取消了工具执行: " + definition.name() + "."
+                : "用户拒绝了工具执行: " + definition.name() + ".";
         return ApprovalOutcome.denied(reason);
     }
 
@@ -97,32 +97,32 @@ public class ApprovalManager {
         String toolName = definition.name();
 
         if ("bash".equals(toolName) && !config.bashEnabled()) {
-            return new PolicyCheck(PolicyVerdict.DENY, "The bash tool is disabled in the current configuration.");
+            return new PolicyCheck(PolicyVerdict.DENY, "当前配置中 bash 工具已禁用。");
         }
 
         Path path = extractPath(toolName, input);
         if (path != null && !config.allowExternalPaths() && !path.startsWith(workspaceRoot())) {
-            return new PolicyCheck(PolicyVerdict.DENY, "Path is outside the workspace and external paths are disabled: " + path);
+            return new PolicyCheck(PolicyVerdict.DENY, "路径在工作区外且外部路径已禁用: " + path);
         }
 
         if (definition.destructive() && path != null && isProtectedPath(path)) {
-            return new PolicyCheck(PolicyVerdict.DENY, "Protected internal path cannot be modified: " + path);
+            return new PolicyCheck(PolicyVerdict.DENY, "受保护的内部路径不可修改: " + path);
         }
 
         if ("delete_file".equals(toolName) && path != null) {
             if (path.equals(workspaceRoot())) {
-                return new PolicyCheck(PolicyVerdict.DENY, "Refusing to delete the workspace root.");
+                return new PolicyCheck(PolicyVerdict.DENY, "拒绝删除工作区根目录。");
             }
             if (Files.exists(path) && Files.isDirectory(path)) {
-                return new PolicyCheck(PolicyVerdict.DENY, "delete_file only supports regular files, not directories.");
+                return new PolicyCheck(PolicyVerdict.DENY, "delete_file 仅支持普通文件，不支持目录。");
             }
         }
 
         if (!definition.requiresApproval()) {
-            return new PolicyCheck(PolicyVerdict.ALLOW, "Read-only tool auto approved.");
+            return new PolicyCheck(PolicyVerdict.ALLOW, "只读工具自动批准。");
         }
 
-        return new PolicyCheck(PolicyVerdict.REQUIRE_APPROVAL, "Tool requires approval.");
+        return new PolicyCheck(PolicyVerdict.REQUIRE_APPROVAL, "工具需要审批。");
     }
 
     /** 从工具参数中提取路径参数 */
@@ -191,7 +191,7 @@ public class ApprovalManager {
                     normalized.put(key, resolvePath(raw).toString());
                     continue;
                 } catch (InvalidPathException ignored) {
-                    // fall back to raw value
+                    // 回退到原始值
                 }
             }
             normalized.put(key, value.toString());

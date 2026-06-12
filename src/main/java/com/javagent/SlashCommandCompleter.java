@@ -9,8 +9,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * JLine3 Completer for slash commands.
- * Shows a filtered list of commands as the user types.
+ * 斜杠命令的 JLine3 补全器。
+ * 用户输入时显示过滤后的命令列表。
  */
 public class SlashCommandCompleter implements Completer {
 

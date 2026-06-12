@@ -7,7 +7,7 @@ import java.io.PrintWriter;
 import static com.javagent.util.Terminal.*;
 
 /**
- * Renders a colored context usage bar chart, similar to Claude Code's /context output.
+ * 渲染彩色上下文使用率条形图，类似 Claude Code 的 /context 输出。
  *
  * Layout:
  *   - One main bar (single line, wraps only when full)
@@ -17,7 +17,7 @@ public final class ContextDisplay {
 
     private static final int BAR_WIDTH = 20;
     private static final int MINI_BAR_WIDTH = 10;
-    // Unified characters for filled and empty segments
+    // 统一的填充和空白段字符
     private static final String FILLED = "⛁ ";
     private static final String EMPTY = "⛶ ";
 
@@ -25,30 +25,30 @@ public final class ContextDisplay {
     }
 
     /**
-     * Print the full context usage display to the given PrintWriter.
+     * 将完整的上下文使用情况显示输出到指定的 PrintWriter。
      */
     public static void display(PrintWriter out, ContextUsage usage, String modelName) {
         int total = usage.totalTokens();
         int max = usage.maxTokens();
         double pct = usage.usagePercent() * 100;
 
-        // Header
+        // 标题
         out.println();
-        out.println(bold("Context Usage"));
+        out.println(bold("上下文使用情况"));
         out.println();
 
-        // Main progress bar — single line, color by usage level
+        // 主进度条 —— 单行，按使用级别着色
         String barColor = pct < 30 ? GREEN : pct < 70 ? YELLOW : RED;
         String bar = buildBar(total, max, BAR_WIDTH);
         out.println("       " + colorize(barColor, bar) + "   " + bold(TokenCounter.formatTokens(total) + "/" + TokenCounter.formatTokens(max) + " tokens") +
                 " (" + String.format("%.0f", pct) + "%)" + "   " + dim(modelName));
         out.println();
 
-        // Category breakdown — each with own color icon
-        out.println(dim("       Estimated usage by category"));
-        printCategory(out, "System prompt", usage.systemPromptTokens(), max, GRAY);
-        printCategory(out, "Tool definitions", usage.toolDefinitionsTokens(), max, BLUE);
-        printCategory(out, "Messages", usage.messagesTokens(), max, MAGENTA);
+        // 按类别细分 —— 每个类别有独立的彩色图标
+        out.println(dim("       按类别估算使用量"));
+        printCategory(out, "系统提示词", usage.systemPromptTokens(), max, GRAY);
+        printCategory(out, "工具定义", usage.toolDefinitionsTokens(), max, BLUE);
+        printCategory(out, "消息", usage.messagesTokens(), max, MAGENTA);
         printFreeSpace(out, usage.freeTokens(), max);
         out.println();
     }
@@ -85,7 +85,7 @@ public final class ContextDisplay {
     private static void printFreeSpace(PrintWriter out, int free, int max) {
         double pct = max > 0 ? (double) free / max * 100 : 0;
         String miniBar = buildBar(free, max, MINI_BAR_WIDTH);
-        out.println("       " + dim(EMPTY + " Free space: ") +
+        out.println("       " + dim(EMPTY + " 剩余空间: ") +
                 dim(TokenCounter.formatTokens(free)) +
                 dim(" (" + String.format("%.1f", pct) + "%)  "));
     }

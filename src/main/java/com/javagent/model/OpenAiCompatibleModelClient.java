@@ -24,10 +24,10 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * OpenAI-compatible model client — calls real AI APIs with SSE streaming support.
+ * OpenAI 兼容的模型客户端 —— 调用真实 AI API，支持 SSE 流式输出。
  *
- * Supports any OpenAI API-compatible service (OpenAI, DeepSeek, Moonshot, etc.).
- * When a TextStreamHandler is provided, uses true SSE streaming for token-by-token output.
+ * 支持任何 OpenAI API 兼容服务（OpenAI、DeepSeek、Moonshot 等）。
+ * 当提供 TextStreamHandler 时，使用真正的 SSE 流式逐 token 输出。
  */
 public class OpenAiCompatibleModelClient implements ModelClient {
     private static final Logger LOG = Logger.getLogger(OpenAiCompatibleModelClient.class.getName());
@@ -49,16 +49,16 @@ public class OpenAiCompatibleModelClient implements ModelClient {
     @Override
     public ModelResponse chat(String systemPrompt, List<Message> messages, List<ToolDefinition> tools) {
         if (config.apiKey().isBlank()) {
-            return ModelResponse.error("Real mode requires an API key. Configure agent.api_key or switch back to mock mode.");
+            return ModelResponse.error("真实模式需要 API Key。请配置 agent.api_key 或切换回模拟模式。");
         }
 
         try {
-            // Try with tools first
+            // 先尝试带工具调用
             String body = buildRequestBody(systemPrompt, messages, tools, false);
             HttpRequest request = buildRequest(body);
             HttpResponse<String> response = sendWithRetry(request);
             if (response.statusCode() >= 400) {
-                // If 400 and tools were provided, retry without tools (model may not support function calling)
+                // 如果返回 400 且有工具，去掉工具重试（模型可能不支持函数调用）
                 if (response.statusCode() == 400 && !tools.isEmpty()) {
                     String bodyNoTools = buildRequestBody(systemPrompt, messages, List.of(), false);
                     HttpRequest retryRequest = buildRequest(bodyNoTools);
@@ -67,53 +67,53 @@ public class OpenAiCompatibleModelClient implements ModelClient {
                         return parseResponse(retryResponse.body());
                     }
                 }
-                return ModelResponse.error("HTTP " + response.statusCode() + ": " + truncate(response.body(), 500));
+                return ModelResponse.error("HTTP 错误 " + response.statusCode() + ": " + truncate(response.body(), 500));
             }
             return parseResponse(response.body());
         } catch (IOException | InterruptedException e) {
             Thread.currentThread().interrupt();
-            return ModelResponse.error("Request failed: " + e.getMessage());
+            return ModelResponse.error("请求失败: " + e.getMessage());
         }
     }
 
     @Override
     public ModelResponse chat(String systemPrompt, List<Message> messages,
                                List<ToolDefinition> tools, TextStreamHandler streamHandler) {
-        // No streaming requested or no handler: fall back to non-streaming
+        // 未请求流式或无处理器: 回退到非流式
         if (streamHandler == null) {
             return chat(systemPrompt, messages, tools);
         }
-        // Mock mode: use simulated streaming
+        // 模拟模式: 使用模拟流式输出
         if (config.isMockMode()) {
             return chat(systemPrompt, messages, tools);
         }
 
         if (config.apiKey().isBlank()) {
-            return ModelResponse.error("Real mode requires an API key.");
+            return ModelResponse.error("真实模式需要 API Key。");
         }
 
         try {
             String body = buildRequestBody(systemPrompt, messages, tools, true);
             HttpRequest request = buildRequest(body);
 
-            // Use SSE streaming via BodyHandlers.ofLines()
+            // 通过 BodyHandlers.ofLines() 使用 SSE 流式
             StringBuilder contentBuilder = new StringBuilder();
             StringBuilder reasoningBuilder = new StringBuilder();
             List<ToolCallDelta> toolCallDeltas = new ArrayList<>();
 
             HttpResponse<java.util.stream.Stream<String>> response = httpClient.send(request, HttpResponse.BodyHandlers.ofLines());
             if (response.statusCode() >= 400) {
-                // Close the stream
+                // 关闭流
                 response.body().close();
-                // If 400 with tools, fall back to non-streaming which handles retry
+                // 如果带工具返回 400，回退到非流式（会处理重试）
                 if (response.statusCode() == 400 && !tools.isEmpty()) {
                     return chat(systemPrompt, messages, tools);
                 }
-                return ModelResponse.error("HTTP " + response.statusCode());
+                return ModelResponse.error("HTTP 错误 " + response.statusCode());
             }
 
             response.body().forEach(line -> {
-                if (line.isEmpty() || line.startsWith(":")) return; // skip comments/keepalives
+                if (line.isEmpty() || line.startsWith(":")) return; // 跳过注释/保活消息
                 if (!line.startsWith("data: ")) return;
 
                 String data = line.substring(6).trim();
@@ -126,7 +126,7 @@ public class OpenAiCompatibleModelClient implements ModelClient {
 
                     JsonNode delta = choices.path(0).path("delta");
 
-                    // Content delta
+                    // 内容增量
                     JsonNode contentNode = delta.path("content");
                     if (!contentNode.isMissingNode() && !contentNode.isNull()) {
                         String text = contentNode.asText("");
@@ -136,7 +136,7 @@ public class OpenAiCompatibleModelClient implements ModelClient {
                         }
                     }
 
-                    // Reasoning content delta (thinking models)
+                    // 推理内容增量（思维模型）
                     JsonNode reasoningNode = delta.path("reasoning_content");
                     if (!reasoningNode.isMissingNode() && !reasoningNode.isNull()) {
                         String reasoning = reasoningNode.asText("");
@@ -145,12 +145,12 @@ public class OpenAiCompatibleModelClient implements ModelClient {
                         }
                     }
 
-                    // Tool call deltas
+                    // 工具调用增量
                     JsonNode toolCallsNode = delta.path("tool_calls");
                     if (toolCallsNode.isArray()) {
                         for (JsonNode tc : toolCallsNode) {
                             int index = tc.path("index").asInt(0);
-                            // Ensure list is large enough
+                            // 确保列表足够大
                             while (toolCallDeltas.size() <= index) {
                                 toolCallDeltas.add(new ToolCallDelta());
                             }
@@ -169,11 +169,11 @@ public class OpenAiCompatibleModelClient implements ModelClient {
                     }
 
                 } catch (JsonProcessingException e) {
-                    LOG.log(Level.FINE, "Skipped malformed SSE chunk", e);
+                    LOG.log(Level.FINE, "跳过格式错误的 SSE 数据块", e);
                 }
             });
 
-            // Build response from accumulated data
+            // 从累积数据构建响应
             String reasoning = reasoningBuilder.isEmpty() ? null : reasoningBuilder.toString();
             if (!toolCallDeltas.isEmpty() && toolCallDeltas.stream().anyMatch(t -> t.name != null)) {
                 List<ToolCall> toolCalls = toolCallDeltas.stream()
@@ -188,18 +188,18 @@ public class OpenAiCompatibleModelClient implements ModelClient {
 
             String content = contentBuilder.toString();
             if (content.isEmpty() && reasoning != null) {
-                // Some thinking models return only reasoning_content with no content
+                // 某些思维模型只返回 reasoning_content 而没有 content
                 content = reasoning;
             }
             if (content.isEmpty()) {
-                return ModelResponse.error("Empty response from API.");
+                return ModelResponse.error("API 返回空响应。");
             }
             return ModelResponse.text(content, reasoning);
 
         } catch (IOException | InterruptedException e) {
             Thread.currentThread().interrupt();
             String msg = e.getMessage();
-            return ModelResponse.error("Streaming request failed: " + (msg != null ? msg : e.getClass().getSimpleName()));
+            return ModelResponse.error("流式请求失败: " + (msg != null ? msg : e.getClass().getSimpleName()));
         }
     }
 
@@ -236,7 +236,7 @@ public class OpenAiCompatibleModelClient implements ModelClient {
                 if (status == 429 || status >= 500) {
                     if (attempt < MAX_RETRIES) {
                         long delay = BASE_DELAY_MS * (1L << attempt); // 1s, 2s, 4s
-                        LOG.log(Level.WARNING, "HTTP " + status + ", retrying in " + delay + "ms (attempt " + (attempt + 1) + "/" + MAX_RETRIES + ")");
+                        LOG.log(Level.WARNING, "HTTP " + status + "，" + delay + "ms 后重试（第 " + (attempt + 1) + "/" + MAX_RETRIES + ")");
                         Thread.sleep(delay);
                         continue;
                     }
@@ -246,7 +246,7 @@ public class OpenAiCompatibleModelClient implements ModelClient {
                 lastException = e;
                 if (attempt < MAX_RETRIES) {
                     long delay = BASE_DELAY_MS * (1L << attempt);
-                    LOG.log(Level.WARNING, "IO error, retrying in " + delay + "ms (attempt " + (attempt + 1) + "/" + MAX_RETRIES + "): " + e.getMessage());
+                    LOG.log(Level.WARNING, "IO 错误，" + delay + "ms 后重试（第 " + (attempt + 1) + "/" + MAX_RETRIES + "): " + e.getMessage());
                     Thread.sleep(delay);
                 }
             }
@@ -262,7 +262,7 @@ public class OpenAiCompatibleModelClient implements ModelClient {
         root.put("tool_choice", "auto");
         if (stream) {
             root.put("stream", true);
-            // Enable stream options for usage info
+            // 启用流选项以获取用量信息
             ObjectNode streamOptions = objectMapper.createObjectNode();
             streamOptions.put("include_usage", false);
             root.set("stream_options", streamOptions);
@@ -284,7 +284,7 @@ public class OpenAiCompatibleModelClient implements ModelClient {
                 case USER, SYSTEM -> node.put("content", message.content());
                 case ASSISTANT -> {
                     node.put("content", message.content());
-                    // Include reasoning_content for thinking models (must be passed back)
+                    // 包含思维模型的 reasoning_content（必须回传）
                     if (message.reasoningContent() != null && !message.reasoningContent().isEmpty()) {
                         node.put("reasoning_content", message.reasoningContent());
                     }
@@ -350,15 +350,15 @@ public class OpenAiCompatibleModelClient implements ModelClient {
     private ModelResponse parseResponse(String responseBody) throws JsonProcessingException {
         JsonNode root = objectMapper.readTree(responseBody);
         if (root.has("error")) {
-            return ModelResponse.error(root.path("error").path("message").asText("Unknown API error"));
+            return ModelResponse.error(root.path("error").path("message").asText("未知 API 错误"));
         }
 
         JsonNode messageNode = root.path("choices").path(0).path("message");
         if (messageNode.isMissingNode()) {
-            return ModelResponse.error("Response did not contain a message.");
+            return ModelResponse.error("响应中未包含消息。");
         }
 
-        // Extract reasoning_content for thinking models
+        // 提取思维模型的 reasoning_content
         String reasoningContent = null;
         JsonNode reasoningNode = messageNode.path("reasoning_content");
         if (!reasoningNode.isMissingNode() && !reasoningNode.isNull()) {
@@ -410,7 +410,7 @@ public class OpenAiCompatibleModelClient implements ModelClient {
         return contentNode.toString();
     }
 
-    /** Accumulator for streaming tool call deltas */
+    /** 流式工具调用增量的累加器 */
     private static class ToolCallDelta {
         String id;
         String name;

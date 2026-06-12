@@ -42,7 +42,7 @@ class ApprovalManagerTest {
         ApprovalOutcome outcome = manager.authorize(tool, call, null);
 
         assertTrue(outcome.approved());
-        assertTrue(outcome.reason().contains("auto approved"));
+        assertTrue(outcome.reason().contains("自动批准"));
     }
 
     @Test
@@ -53,7 +53,7 @@ class ApprovalManagerTest {
         ApprovalOutcome outcome = manager.authorize(tool, call, null);
 
         assertFalse(outcome.approved());
-        assertTrue(outcome.reason().contains("disabled"));
+        assertTrue(outcome.reason().contains("禁用"));
     }
 
     @Test
@@ -65,7 +65,7 @@ class ApprovalManagerTest {
         ApprovalOutcome outcome = manager.authorize(tool, call, tc -> ApprovalDecision.DENIED);
 
         assertFalse(outcome.approved());
-        assertTrue(outcome.reason().contains("denied"));
+        assertTrue(outcome.reason().contains("拒绝"));
     }
 
     @Test
@@ -79,7 +79,7 @@ class ApprovalManagerTest {
         ApprovalOutcome outcome = manager.authorize(tool, call, null);
 
         assertTrue(outcome.approved());
-        assertTrue(outcome.reason().contains("Bypass"));
+        assertTrue(outcome.reason().contains("绕过"));
     }
 
     @Test
@@ -94,7 +94,7 @@ class ApprovalManagerTest {
         // Second call: should use cache
         ApprovalOutcome outcome = manager.authorize(tool, call, null);
         assertTrue(outcome.approved());
-        assertTrue(outcome.reason().contains("cache"));
+        assertTrue(outcome.reason().contains("缓存"));
     }
 
     @Test
@@ -123,7 +123,7 @@ class ApprovalManagerTest {
         ApprovalOutcome outcome = manager.authorize(tool, call, null);
 
         assertFalse(outcome.approved());
-        assertTrue(outcome.reason().contains("Protected"));
+        assertTrue(outcome.reason().contains("受保护"));
     }
 
     private Tool makeTool(String name, boolean requiresApproval, boolean readOnly, boolean destructive) {

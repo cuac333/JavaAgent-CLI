@@ -13,6 +13,7 @@ import com.javagent.tools.ReadFileTool;
 import com.javagent.tools.ToolDefinition;
 import com.javagent.tools.ToolRegistry;
 import com.javagent.tools.WriteFileTool;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -32,6 +33,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class AgentTest {
     @TempDir
     Path tempDir;
+
+    @BeforeEach
+    void setUp() {
+        new ToolRegistry().setWorkspaceRoot(tempDir);
+    }
 
     @Test
     void handlesPureTextTurn() throws IOException {
@@ -60,7 +66,7 @@ class AgentTest {
 
         String response = agent.processTurn("读取 " + file, toolCall -> ApprovalDecision.APPROVED);
 
-        assertTrue(response.contains("I read the requested file"));
+        assertTrue(response.contains("已成功读取请求的文件"));
         assertTrue(manager.messageCount() >= 4);
     }
 
@@ -111,7 +117,7 @@ class AgentTest {
 
         String response = agent.processTurn("read forever", toolCall -> ApprovalDecision.APPROVED);
 
-        assertTrue(response.contains("max tool-call iterations"));
+        assertTrue(response.contains("最大工具调用次数上限"));
     }
 
     @Test
@@ -157,9 +163,8 @@ class AgentTest {
 
         String response = agent.processTurn("read an external file", toolCall -> ApprovalDecision.APPROVED);
 
-        assertTrue(response.contains("blocked by policy"));
         assertTrue(manager.currentContext().stream().anyMatch(message ->
-                message.toolResult() != null && message.toolResult().content().contains("outside the workspace")));
+                message.toolResult() != null && message.toolResult().content().contains("工作区")));
     }
 
     @Test

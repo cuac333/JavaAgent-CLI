@@ -31,7 +31,7 @@ public class MockModelClient implements ModelClient {
     @Override
     public ModelResponse chat(String systemPrompt, List<Message> messages, List<ToolDefinition> tools) {
         if (messages.isEmpty()) {
-            return ModelResponse.text("Mock mode ready.");
+            return ModelResponse.text("模拟模式已就绪。");
         }
 
         Message lastMessage = messages.get(messages.size() - 1);
@@ -44,7 +44,7 @@ public class MockModelClient implements ModelClient {
                 .reduce((first, second) -> second);
 
         if (maybeLastUser.isEmpty()) {
-            return ModelResponse.text("Mock mode did not find a user message.");
+            return ModelResponse.text("模拟模式未找到用户消息。");
         }
 
         String input = maybeLastUser.get().content().trim();
@@ -59,7 +59,7 @@ public class MockModelClient implements ModelClient {
             args.put("old_string", oldStr);
             args.put("new_string", newStr);
             return ModelResponse.toolCalls(
-                    "I should edit the file using the edit tool.",
+                    "我应该使用编辑工具来修改文件。",
                     List.of(ToolCall.of("edit", args))
             );
         }
@@ -67,7 +67,7 @@ public class MockModelClient implements ModelClient {
         if (hasTool(tools, "delete_file") && containsAny(lower, "删除", "delete", "remove")) {
             String path = extractPathToken(input).orElse("notes.txt");
             return ModelResponse.toolCalls(
-                    "I should delete the requested file before answering.",
+                    "我应该先删除请求的文件再回答。",
                     List.of(ToolCall.of("delete_file", Map.of("path", path)))
             );
         }
@@ -80,7 +80,7 @@ public class MockModelClient implements ModelClient {
             args.put("content", content);
             args.put("append", lower.contains("append") || lower.contains("追加"));
             return ModelResponse.toolCalls(
-                    "I should write the requested content to disk first.",
+                    "我应该先将请求的内容写入磁盘。",
                     List.of(ToolCall.of("write_file", args))
             );
         }
@@ -92,7 +92,7 @@ public class MockModelClient implements ModelClient {
             args.put("recursive", lower.contains("递归") || lower.contains("recursive"));
             args.put("limit", 50);
             return ModelResponse.toolCalls(
-                    "I should inspect the directory contents first.",
+                    "我应该先查看目录内容。",
                     List.of(ToolCall.of("list_directory", args))
             );
         }
@@ -103,7 +103,7 @@ public class MockModelClient implements ModelClient {
             args.put("path", path);
             args.put("limit", 200);
             return ModelResponse.toolCalls(
-                    "I should inspect the file before answering.",
+                    "我应该先查看文件再回答。",
                     List.of(ToolCall.of("read_file", args))
             );
         }
@@ -116,7 +116,7 @@ public class MockModelClient implements ModelClient {
             args.put("path", path);
             args.put("caseSensitive", false);
             return ModelResponse.toolCalls(
-                    "I should search the project for matching text first.",
+                    "我应该先在项目中搜索匹配的文本。",
                     List.of(ToolCall.of("grep", args))
             );
         }
@@ -124,16 +124,16 @@ public class MockModelClient implements ModelClient {
         if (hasTool(tools, "bash") && containsAny(lower, "执行命令", "run command", "bash", "shell")) {
             String command = extractQuotedText(input).orElse("pwd");
             return ModelResponse.toolCalls(
-                    "I should run the requested command first.",
+                    "我应该先执行请求的命令。",
                     List.of(ToolCall.of("bash", Map.of("command", command))))
                     ;
         }
 
         if (containsAny(lower, "help", "工具", "tools")) {
-            return ModelResponse.text("Mock mode can read files, search text, list directories, write files, delete files, and demonstrate the full agent loop.");
+            return ModelResponse.text("模拟模式可以读取文件、搜索文本、列出目录、写入文件、删除文件，并演示完整的 Agent 循环。");
         }
 
-        return ModelResponse.text("[mock] I understood your request, but it does not require a tool call. Ask me to read, search, list, write, or delete something.");
+        return ModelResponse.text("[模拟] 我理解了你的请求，但不需要调用工具。请让我读取、搜索、列出、写入或删除某些内容。");
     }
 
     @Override
@@ -144,21 +144,21 @@ public class MockModelClient implements ModelClient {
     /** 总结工具执行结果 —— 根据工具名称生成不同的总结模板 */
     private ModelResponse summarizeToolResult(ToolResultMessage toolResult) {
         if (toolResult.error()) {
-            return ModelResponse.text("The tool call failed: " + toolResult.content());
+            return ModelResponse.text("工具调用失败: " + toolResult.content());
         }
 
         return switch (toolResult.toolName()) {
-            case "read_file" -> ModelResponse.text("I read the requested file successfully. Here is a concise summary based on the tool output:\n\n"
+            case "read_file" -> ModelResponse.text("已成功读取请求的文件。以下是基于工具输出的简要摘要:\n\n"
                     + firstLines(toolResult.content(), 12));
-            case "grep" -> ModelResponse.text("I searched the requested path. Here are the most relevant matches:\n\n"
+            case "grep" -> ModelResponse.text("已搜索请求的路径。以下是最相关的匹配结果:\n\n"
                     + firstLines(toolResult.content(), 14));
-            case "list_directory" -> ModelResponse.text("I listed the requested directory. Here are the most relevant entries:\n\n"
+            case "list_directory" -> ModelResponse.text("已列出请求的目录。以下是最相关的条目:\n\n"
                     + firstLines(toolResult.content(), 16));
-            case "write_file" -> ModelResponse.text("The file write completed successfully.\n\n" + firstLines(toolResult.content(), 8));
-            case "edit" -> ModelResponse.text("The file was edited successfully.\n\n" + firstLines(toolResult.content(), 8));
-            case "delete_file" -> ModelResponse.text("The requested file was deleted successfully.\n\n" + firstLines(toolResult.content(), 8));
-            case "bash" -> ModelResponse.text("The command finished. Summary:\n\n" + firstLines(toolResult.content(), 12));
-            default -> ModelResponse.text("Tool execution completed:\n\n" + firstLines(toolResult.content(), 12));
+            case "write_file" -> ModelResponse.text("文件写入成功。\n\n" + firstLines(toolResult.content(), 8));
+            case "edit" -> ModelResponse.text("文件编辑成功。\n\n" + firstLines(toolResult.content(), 8));
+            case "delete_file" -> ModelResponse.text("请求的文件已成功删除。\n\n" + firstLines(toolResult.content(), 8));
+            case "bash" -> ModelResponse.text("命令执行完成。摘要:\n\n" + firstLines(toolResult.content(), 12));
+            default -> ModelResponse.text("工具执行完成:\n\n" + firstLines(toolResult.content(), 12));
         };
     }
 
@@ -238,7 +238,7 @@ public class MockModelClient implements ModelClient {
                 .trim();
 
         if (normalized.isBlank()) {
-            return "Generated by JavaAgent CLI.";
+            return "由 JavaAgent CLI 生成。";
         }
         return normalized;
     }

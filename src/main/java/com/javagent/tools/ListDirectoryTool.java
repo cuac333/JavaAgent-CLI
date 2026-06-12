@@ -29,11 +29,11 @@ public class ListDirectoryTool implements Tool {
 
     private static final ToolDefinition DEFINITION = new ToolDefinition(
             "list_directory",
-            "List files and directories with optional recursion.",
+            "列出文件和目录，支持递归遍历。",
             Map.of(
-                    "path", "Directory path to inspect. Defaults to current directory.",
-                    "recursive", "Whether child directories should be traversed recursively.",
-                    "limit", "Maximum number of entries to return."
+                    "path", "要查看的目录路径，默认为当前目录。",
+                    "recursive", "是否递归遍历子目录。",
+                    "limit", "返回的最大条目数。"
             ),
             Map.of(
                     "path", "string",
@@ -63,7 +63,7 @@ public class ListDirectoryTool implements Tool {
         try {
             path = FileToolSupport.normalizePath(rawPath);
         } catch (InvalidPathException e) {
-            return ToolExecutionResult.error("Invalid path: " + rawPath);
+            return ToolExecutionResult.error("无效的路径：" + rawPath);
         }
 
         String wsError = FileToolSupport.checkInsideWorkspace(path);
@@ -72,10 +72,10 @@ public class ListDirectoryTool implements Tool {
         }
 
         if (!Files.exists(path)) {
-            return ToolExecutionResult.error("Path not found: " + path);
+            return ToolExecutionResult.error("路径未找到：" + path);
         }
         if (!Files.isDirectory(path)) {
-            return ToolExecutionResult.error("Path is not a directory: " + path);
+            return ToolExecutionResult.error("路径不是目录：" + path);
         }
 
         boolean recursive = FileToolSupport.booleanValue(input.get("recursive"), false);
@@ -89,8 +89,8 @@ public class ListDirectoryTool implements Tool {
                     .toList();
 
             StringBuilder builder = new StringBuilder();
-            builder.append("Directory: ").append(path.toAbsolutePath()).append(System.lineSeparator());
-            builder.append("recursive=").append(recursive).append(System.lineSeparator());
+            builder.append("目录：").append(path.toAbsolutePath()).append(System.lineSeparator());
+            builder.append("递归=").append(recursive).append(System.lineSeparator());
             builder.append("-----").append(System.lineSeparator());
             for (Path entry : entries) {
                 String marker = Files.isDirectory(entry) ? "[D] " : "[F] ";
@@ -100,13 +100,13 @@ public class ListDirectoryTool implements Tool {
                 builder.append(marker).append(display).append(System.lineSeparator());
             }
             builder.append("-----").append(System.lineSeparator())
-                    .append("entries=").append(entries.size());
+                    .append("条目数=").append(entries.size());
             if (entries.size() == limit) {
-                builder.append(" (limit reached)");
+                builder.append("（已达上限）");
             }
             return ToolExecutionResult.success(builder.toString().trim());
         } catch (IOException e) {
-            return ToolExecutionResult.error("Failed to list directory: " + e.getMessage());
+            return ToolExecutionResult.error("列出目录失败：" + e.getMessage());
         }
     }
 }

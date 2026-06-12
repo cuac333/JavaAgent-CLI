@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>JavaAgent-CLI 开发和安装手册</title>
+<style>
+  @page { size: A4; margin: 2cm 1.8cm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+    color: #1a1a2e; background: #fff;
+    line-height: 1.7; font-size: 10.5pt;
+    max-width: 210mm; margin: 0 auto; padding: 30px 40px;
+  }
+  h1 { font-size: 18pt; font-weight: 700; margin-top: 28px; margin-bottom: 10px; color: #0f3460; border-bottom: 2px solid #0f3460; padding-bottom: 6px; }
+  h2 { font-size: 13pt; font-weight: 600; margin-top: 20px; margin-bottom: 8px; color: #16213e; }
+  h3 { font-size: 11pt; font-weight: 600; margin-top: 16px; margin-bottom: 6px; color: #1a1a2e; }
+  p { margin-bottom: 6px; }
+  code { font-family: "SF Mono", "Menlo", "Consolas", monospace; background: #f0f4f8; padding: 1px 4px; border-radius: 3px; font-size: 9pt; color: #e94560; }
+  pre { background: #1a1a2e; color: #e8e8e8; padding: 10px 14px; border-radius: 4px; overflow-x: auto; margin: 6px 0 10px 0; font-size: 8.5pt; line-height: 1.5; }
+  pre code { background: none; color: inherit; padding: 0; font-size: inherit; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 10px 0; font-size: 9.5pt; }
+  th { background: #0f3460; color: #fff; padding: 5px 10px; text-align: left; font-weight: 600; }
+  td { padding: 4px 10px; border-bottom: 1px solid #e0e0e0; }
+  tr:nth-child(even) td { background: #f8f9fa; }
+  .cover { text-align: center; padding-top: 80px; page-break-after: always; position: relative; min-height: 100vh; }
+  .cover h1 { font-size: 42pt; border: none; color: #0f3460; margin-bottom: 6px; letter-spacing: 2px; }
+  .cover .subtitle { font-size: 16pt; color: #555; margin-bottom: 16px; }
+  .cover .desc { font-size: 11pt; color: #666; margin-bottom: 30px; }
+  .cover .meta { font-size: 10pt; color: #888; margin-top: 40px; line-height: 2.2; }
+  .note { background: #e8f4fd; border-left: 3px solid #0f3460; padding: 8px 12px; margin: 8px 0; border-radius: 0 3px 3px 0; font-size: 9.5pt; }
+  .tip { background: #fff8e1; border-left: 3px solid #f9a825; padding: 8px 12px; margin: 8px 0; border-radius: 0 3px 3px 0; font-size: 9.5pt; }
+  ul, ol { margin: 4px 0 8px 20px; }
+  li { margin-bottom: 2px; }
+  .page-break { page-break-before: always; }
+  .toc { padding: 20px 0; page-break-after: always; }
+  .toc h2 { border: none; margin-bottom: 12px; }
+  .toc ul { list-style: none; margin: 0; padding: 0; }
+  .toc li { padding: 4px 0; border-bottom: 1px dotted #ddd; font-size: 10.5pt; }
+  .toc li span { color: #999; float: right; }
+  .footer { text-align: center; font-size: 8.5pt; color: #aaa; margin-top: 30px; padding-top: 10px; border-top: 1px solid #eee; }
+  .config-block { background: #f5f5f5; border: 1px solid #ddd; border-radius: 4px; padding: 8px 12px; margin: 6px 0 10px 0; font-family: "SF Mono", "Menlo", "Consolas", monospace; font-size: 8.5pt; line-height: 1.5; white-space: pre; }
+</style>
+</head>
+<body>
+
+<!-- 封面 -->
+<div class="cover">
+  <h1>JavaAgent-CLI</h1>
+  <div class="subtitle">开发和安装手册</div>
+  <div class="desc">基于 ReAct 架构的自主编程智能体</div>
+  <div class="meta">
+    版本：1.0.0<br>
+    日期：2026 年 6 月 12 日<br>
+    开发者（排名不分先后）：莫承潜，黄春云，胡鸿扬<br>
+    汇报者（排名不分先后）：黄麟松，王郅为<br>
+    四川农业大学 · 信息工程学院
+  </div>
+  <div style="position: absolute; bottom: 40px; left: 0; right: 0; font-size: 9pt; color: #888; line-height: 1.8; max-width: 480px; margin-left: auto; margin-right: auto; text-align: center;">
+    本项目采用 <strong>MIT 开源协议</strong>（MIT License）发布。<br>
+    版权所有 © 2026 四川农业大学信息工程学院 JavaAgent-CLI 开发团队。<br>
+    在遵守 MIT 协议条款的前提下，任何人都可以自由使用、复制、修改、合并、发布、分发、再许可和/或出售本软件的副本。
+  </div>
+</div>
+
+<!-- 目录 -->
+<div class="toc">
+  <h2>目 录</h2>
+  <ul>
+    <li>一、项目简介 <span>3</span></li>
+    <li>二、系统架构 <span>4</span></li>
+    <li>三、环境要求 <span>5</span></li>
+    <li>四、安装与构建 <span>5</span></li>
+    <li>五、配置说明 <span>6</span></li>
+    <li>六、使用指南 <span>7</span></li>
+    <li>七、内置工具 <span>8</span></li>
+    <li>八、斜杠命令 <span>9</span></li>
+    <li>九、安全机制 <span>10</span></li>
+    <li>十、插件扩展 <span>11</span></li>
+    <li>十一、项目结构 <span>12</span></li>
+    <li>十二、常见问题 <span>13</span></li>
+  </ul>
+</div>
+
+<!-- 正文 -->
+<h1>一、项目简介</h1>
+
+<h2>1.1 什么是 JavaAgent-CLI</h2>
+<p>JavaAgent-CLI 是一个用 Java 21 实现的自主编程智能体，类似于 Claude Code 的命令行版本。它采用 <strong>ReAct（Reasoning + Acting）架构</strong>，让大语言模型通过工具调用与本地开发环境交互，自动完成编程任务。</p>
+<p>用户输入自然语言指令后，智能体自主规划、推理、调用工具（文件编辑、搜索、Shell 执行等）来完成任务，整个过程在终端中实时可见。</p>
+
+<h2>1.2 核心特性</h2>
+<table>
+  <tr><th>特性</th><th>说明</th></tr>
+  <tr><td>ReAct 推理循环</td><td>观察-推理-行动-反思，每轮最多 12 次迭代</td></tr>
+  <tr><td>8 个内置工具</td><td>read_file、write_file、edit、delete_file、grep、list_directory、bash、network</td></tr>
+  <tr><td>SSE 流式输出</td><td>逐 token 实时显示 AI 回复，支持思维链推理</td></tr>
+  <tr><td>人机协作审批</td><td>只读操作自动批准，写入操作需用户确认</td></tr>
+  <tr><td>上下文可视化</td><td>/context 命令展示 token 使用分布</td></tr>
+  <tr><td>5 级推理深度</td><td>从"简短直接"到"极限推理"可调</td></tr>
+  <tr><td>安全沙箱</td><td>工作区隔离、危险命令检测、敏感信息脱敏</td></tr>
+  <tr><td>跨平台支持</td><td>macOS / Linux / Windows（PowerShell/cmd）</td></tr>
+</table>
+
+<h2>1.3 技术栈</h2>
+<table>
+  <tr><th>组件</th><th>版本</th><th>用途</th></tr>
+  <tr><td>Java</td><td>21+</td><td>运行环境</td></tr>
+  <tr><td>Maven</td><td>3.8+</td><td>构建工具</td></tr>
+  <tr><td>Jackson</td><td>2.18.3</td><td>JSON 序列化</td></tr>
+  <tr><td>JLine 3</td><td>3.28.0</td><td>终端交互、行编辑、Tab 补全</td></tr>
+  <tr><td>jtokkit</td><td>1.1.0</td><td>Token 计数（cl100k_base）</td></tr>
+  <tr><td>JUnit 5</td><td>5.11.4</td><td>单元测试与集成测试</td></tr>
+</table>
+
+<h1 class="page-break">二、系统架构</h1>
+
+<h2>2.1 整体架构</h2>
+<p>JavaAgent-CLI 采用分层架构设计，各层职责清晰：</p>
+<pre><code>┌─────────────────────────────────────────────┐
+│            JavaAgentCLI（入口层）              │
+│  REPL 循环 · 斜杠命令路由 · ANSI 渲染        │
+├─────────────────────────────────────────────┤
+│            Agent（核心引擎层）                │
+│  ReAct 循环 · 系统提示词构建 · 上下文压缩     │
+├─────────────────────────────────────────────┤
+│  ModelClient │ ToolRegistry │ ApprovalManager│
+│  模型通信     │ 工具注册管理   │ 权限审批策略    │
+├─────────────────────────────────────────────┤
+│            Tools（工具层）                    │
+│  8 个内置工具 + SPI 插件扩展                  │
+└─────────────────────────────────────────────┘</code></pre>
+
+<h2>2.2 ReAct 循环流程</h2>
+<p>每次用户输入后，Agent 执行以下循环：</p>
+<ol>
+  <li>将用户消息加入对话历史</li>
+  <li>构建系统提示词（身份 + 规则 + 工具定义）</li>
+  <li>调用 LLM 获取响应（文本回复 或 工具调用）</li>
+  <li>如果响应包含工具调用 → 执行工具 → 将结果返回 LLM → 回到第 3 步</li>
+  <li>如果响应是文本回复 → 返回给用户</li>
+  <li>达到最大迭代次数（默认 12）→ 停止并提示</li>
+</ol>
+
+<h2>2.3 审批流程</h2>
+<p>工具执行前经过审批检查：</p>
+<pre><code>工具调用请求
+    ↓
+策略检查（bash 是否启用？路径是否越权？是否受保护路径？）
+    ↓ 硬拒绝 → 直接拒绝
+    ↓ 通过
+绕过模式？→ 是 → 自动批准
+    ↓ 否
+审批缓存命中？→ 是 → 沿用缓存结果
+    ↓ 否
+只读工具？→ 是 → 自动批准
+    ↓ 否
+请求用户确认 → 缓存结果 → 执行/拒绝</code></pre>
+
+<h1 class="page-break">三、环境要求</h1>
+
+<h2>3.1 必需环境</h2>
+<table>
+  <tr><th>软件</th><th>最低版本</th><th>说明</th></tr>
+  <tr><td>JDK</td><td>21</td><td>需要支持虚拟线程和模式切换</td></tr>
+  <tr><td>Maven</td><td>3.8</td><td>构建工具</td></tr>
+  <tr><td>操作系统</td><td>—</td><td>macOS、Linux、Windows 均可</td></tr>
+</table>
+
+<h2>3.2 真实模式额外要求</h2>
+<ul>
+  <li>有效的 OpenAI 兼容 API Key（支持 OpenAI、DeepSeek、Moonshot 等）</li>
+  <li>网络连接（用于调用 AI API）</li>
+</ul>
+
+<h2>3.3 模拟模式（不推荐）</h2>
+<p>无需 API Key 和网络，用于开发和演示。使用 <code>--mock</code> 参数启动。</p>
+
+<h1>四、安装与构建（Tips：手动部署按顺序依次复制即可）</h1>
+
+<h2>4.0 一键部署（推荐）</h2>
+<p>如果你使用小龙虾（Lobster）或 Hermes 等 AI 编程助手，只需发送下面这句话即可自动完成项目下载、构建和部署：</p>
+<div class="config-block">帮我下载、构建并部署这个项目：https://github.com/cuac333/JavaAgent-CLI</div>
+<p>AI 将自动克隆仓库、安装依赖、编译项目并完成运行环境配置。</p>
+
+<h2>4.1 获取源码</h2>
+<div class="config-block">git clone https://github.com/cuac333/JavaAgent-CLI.git</div>
+
+<h2>4.2 构建项目</h2>
+<div class="config-block">cd JavaAgent-CLI
+mvn clean package -DskipTests</div>
+
+<h2>4.3 运行程序</h2>
+
+<h3>macOS / Linux</h3>
+<div class="config-block"># 方式一：使用包装脚本（推荐）
+chmod +x javaagentcli
+./javaagentcli
+
+# 方式二：直接运行 JAR
+java --enable-native-access=ALL-UNNAMED -jar target/javaagent-cli-1.0.0.jar</div>
+
+<h3>Windows</h3>
+<div class="config-block"># 方式一：使用 cmd 包装脚本
+javaagentcli.cmd
+
+# 方式二：直接运行 JAR
+java --enable-native-access=ALL-UNNAMED -jar target\javaagent-cli-1.0.0.jar</div>
+
+<h3>模拟模式（无需 API Key）</h3>
+<div class="config-block">java --enable-native-access=ALL-UNNAMED -jar target/javaagent-cli-1.0.0.jar --mock</div>
+
+<h3>成功界面</h3>
+<p>启动成功后将看到如下界面：</p>
+<p><img src="success-screenshot.png" style="width:100%; border-radius:4px; border:1px solid #ddd;"></p>
+
+<h1 class="page-break">五、配置说明</h1>
+
+<p>运行时行为通过 <code>config.properties</code> 文件控制。程序会按以下顺序查找配置文件：</p>
+<ol>
+  <li>项目根目录（与 JAR 同级）</li>
+  <li>当前工作目录</li>
+  <li><code>~/.javaagent-cli/config.properties</code></li>
+</ol>
+
+<h2>5.1 完整配置项</h2>
+<div class="config-block"># ========== 基础配置 ==========
+agent.mock_mode=false              # 模拟模式开关
+agent.api_key=                     # OpenAI 兼容 API Key
+agent.base_url=                     # API 基础地址（根据使用的模型服务商填写）
+agent.model=gpt-4o                 # 模型名称
+
+# ========== 行为配置 ==========
+agent.max_iterations=12            # 每轮最大工具调用次数
+agent.bash_enabled=false           # 是否启用 bash 工具
+agent.stream_responses=true        # 是否启用流式输出
+agent.effort=high                  # 推理深度（low/high/xhigh/max/ultra）
+
+# ========== 上下文配置 ==========
+agent.max_tokens=200000            # 上下文窗口大小
+agent.auto_compact_threshold=0.8   # 自动压缩阈值
+
+# ========== 安全配置 ==========
+agent.rate_limit_qps=10            # API 速率限制（QPS）
+agent.auto_save=true               # 自动保存会话
+agent.approval_cache=true          # 审批缓存开关
+agent.allow_external_paths=false   # 是否允许访问工作区外路径
+
+# ========== 自定义 ==========
+agent.custom_system_prompt=        # 自定义系统提示词（留空使用默认）</div>
+
+<h2>5.2 配置示例</h2>
+<div class="config-block"># 模拟模式（开发/演示用）
+agent.mock_mode=true
+
+# 真实模式
+agent.mock_mode=false
+agent.api_key=sk-your-api-key-here
+agent.base_url=https://api.deepseek.com/v1
+agent.model=deepseek-chat
+agent.bash_enabled=true</div>
+
+<div class="note">
+  <strong>提示：</strong>配置修改后可在 CLI 中使用 <code>/reload</code> 命令热重载，无需重启程序。
+</div>
+
+<h1 class="page-break">六、使用指南</h1>
+
+<h2>6.1 基本交互</h2>
+<p>启动程序后，在提示符处输入自然语言指令即可：</p>
+<pre><code>JavaAgent CLI v1.0.0 | mock-model | effort: high
+──────────────────────────────────────────────────
+> 帮我读取 README.md 文件
+
+> 在 src/ 目录下搜索所有包含 "TODO" 的行</code></pre>
+
+<h2>6.2 常用斜杠命令</h2>
+<table>
+  <tr><th>命令</th><th>说明</th></tr>
+  <tr><td><code>/help</code></td><td>显示帮助信息</td></tr>
+  <tr><td><code>/clear</code></td><td>清除当前对话</td></tr>
+  <tr><td><code>/context</code></td><td>查看 token 使用情况</td></tr>
+  <tr><td><code>/effort [level]</code></td><td>设置推理深度（low/high/xhigh/max/ultra）</td></tr>
+  <tr><td><code>/mock</code></td><td>切换到模拟模式</td></tr>
+  <tr><td><code>/real</code></td><td>切换到真实模式</td></tr>
+  <tr><td><code>/model [name]</code></td><td>查看或切换模型</td></tr>
+  <tr><td><code>/prompt show|set|reset</code></td><td>管理系统提示词</td></tr>
+  <tr><td><code>/sessions</code></td><td>列出历史会话</td></tr>
+  <tr><td><code>/reload</code></td><td>重新加载配置文件</td></tr>
+  <tr><td><code>/stats</code></td><td>查看工具调用统计</td></tr>
+  <tr><td><code>/version</code></td><td>查看版本信息</td></tr>
+</table>
+
+<h2>6.3 推理深度说明</h2>
+<table>
+  <tr><th>级别</th><th>特点</th><th>适用场景</th></tr>
+  <tr><td>low</td><td>简短直接，跳过解释</td><td>快速问答、简单操作</td></tr>
+  <tr><td>high</td><td>逐步推理，详细解释</td><td>日常编程任务（默认）</td></tr>
+  <tr><td>xhigh</td><td>深度分析，多角度探索</td><td>复杂问题、架构设计</td></tr>
+  <tr><td>max</td><td>最大深度，考虑所有边界</td><td>关键代码审查</td></tr>
+  <tr><td>ultra</td><td>极限推理，穷举一切可能</td><td>极其复杂的系统设计</td></tr>
+</table>
+
+<h2 class="page-break">七、内置工具</h2>
+
+<table>
+  <tr><th>工具名</th><th>别名</th><th>功能</th><th>参数</th></tr>
+  <tr><td><code>read_file</code></td><td>cat</td><td>读取文件内容</td><td>path, limit, offset</td></tr>
+  <tr><td><code>write_file</code></td><td>write</td><td>写入文件（支持追加）</td><td>path, content, append</td></tr>
+  <tr><td><code>edit</code></td><td>str_replace</td><td>精确字符串替换</td><td>path, old_string, new_string, replace_all</td></tr>
+  <tr><td><code>delete_file</code></td><td>rm</td><td>删除文件</td><td>path</td></tr>
+  <tr><td><code>grep</code></td><td>search, find</td><td>正则搜索文本</td><td>pattern, path, case_sensitive</td></tr>
+  <tr><td><code>list_directory</code></td><td>ls</td><td>列出目录内容</td><td>path, recursive, limit</td></tr>
+  <tr><td><code>bash</code></td><td>shell, exec</td><td>执行 Shell 命令</td><td>command</td></tr>
+  <tr><td><code>network</code></td><td>http</td><td>发送 HTTP 请求</td><td>method, url, body</td></tr>
+</table>
+
+<h1>八、斜杠命令</h1>
+
+<h2>8.1 命令列表</h2>
+<p>在 CLI 提示符处输入 <code>/</code> 可查看所有可用命令并自动补全。</p>
+
+<h2>8.2 上下文管理</h2>
+<p>使用 <code>/context</code> 命令查看当前 token 使用情况，包括：</p>
+<ul>
+  <li>系统提示词占用的 token</li>
+  <li>工具定义占用的 token</li>
+  <li>对话消息占用的 token</li>
+  <li>剩余可用空间</li>
+</ul>
+<p>当 token 使用超过阈值（默认 80%）时，系统会自动压缩对话历史。</p>
+
+<h2>8.3 会话管理</h2>
+<ul>
+  <li><code>/sessions</code> — 列出所有历史会话</li>
+  <li><code>/clear</code> — 开始新会话</li>
+  <li>程序退出时自动保存当前会话</li>
+  <li>下次启动自动加载上次会话</li>
+</ul>
+
+<h1 class="page-break">九、安全机制</h1>
+
+<h2>9.1 工作区隔离</h2>
+<p>文件操作默认限制在工作区内。访问工作区外的路径会被拒绝，除非在配置中明确启用 <code>agent.allow_external_paths=true</code>。</p>
+
+<h2>9.2 危险命令检测</h2>
+<p>BashTool 内置了 20 种危险命令模式检测：</p>
+<table>
+  <tr><th>类别</th><th>检测模式</th></tr>
+  <tr><td>文件系统破坏</td><td>rm -rf /、rm -rf ~、chmod -R 777 /</td></tr>
+  <tr><td>磁盘破坏</td><td>mkfs、dd if=...of=/dev/</td></tr>
+  <tr><td>系统破坏</td><td>shutdown、:(){ :|:& };:</td></tr>
+  <tr><td>安全攻击</td><td>反弹 shell、curl | bash、kill -9 1</td></tr>
+  <tr><td>数据泄露</td><td>curl -d @/etc/passwd、shred</td></tr>
+</table>
+
+<h2>9.3 敏感信息脱敏</h2>
+<p>工具执行结果在存储到会话文件前，会自动脱敏以下内容：</p>
+<ul>
+  <li>API Key（sk-xxx 格式）</li>
+  <li>Bearer Token</li>
+  <li>agent.api_key 配置值</li>
+</ul>
+
+<h2>9.4 连续失败熔断</h2>
+<p>同一工具连续失败 3 次后，Agent 自动停止并提示，防止无限循环。</p>
+
+<h1>十、插件扩展</h1>
+
+<h2>10.1 SPI 扩展机制</h2>
+<p>JavaAgent-CLI 支持通过 Java SPI（ServiceLoader）机制扩展新工具：</p>
+<ol>
+  <li>实现 <code>ToolProvider</code> 接口</li>
+  <li>在 <code>META-INF/services/com.javagent.tools.ToolProvider</code> 中注册</li>
+  <li>将 JAR 放入 classpath</li>
+  <li>程序启动时自动发现并注册新工具</li>
+</ol>
+
+<h2>10.2 ToolProvider 接口</h2>
+<pre><code>public interface ToolProvider {
+    /** 返回工具定义列表 */
+    List&lt;Tool&gt; provideTools();
+}</code></pre>
+
+<h1 class="page-break">十一、项目结构</h1>
+
+<pre><code>JavaAgent-CLI/
+├── src/main/java/com/javagent/
+│   ├── JavaAgentCLI.java          # CLI 入口，REPL 循环
+│   ├── BannerPrinter.java         # 启动横幅 + 状态栏
+│   ├── SlashCommandCompleter.java # 斜杠命令补全
+│   ├── core/
+│   │   ├── Agent.java             # ReAct 循环引擎
+│   │   ├── Config.java            # 配置管理
+│   │   ├── ConversationManager.java # 会话管理
+│   │   ├── ApprovalManager.java   # 权限审批
+│   │   └── ...
+│   ├── model/
+│   │   ├── ModelClient.java       # 模型客户端接口
+│   │   ├── OpenAiCompatibleModelClient.java
+│   │   ├── MockModelClient.java   # 模拟客户端
+│   │   └── ...
+│   ├── tools/
+│   │   ├── Tool.java              # 工具接口
+│   │   ├── ToolRegistry.java      # 工具注册中心
+│   │   ├── ReadFileTool.java      # 读取文件
+│   │   ├── EditTool.java          # 精确编辑
+│   │   ├── BashTool.java          # Shell 执行
+│   │   └── ...
+│   └── util/
+│       ├── Terminal.java          # ANSI 终端渲染
+│       ├── TokenCounter.java      # Token 计数
+│       ├── MarkdownRenderer.java  # Markdown 渲染
+│       └── ...
+├── src/test/java/                 # 66 个测试用例
+├── pom.xml                        # Maven 配置
+├── javaagentcli                   # macOS/Linux 启动脚本
+├── javaagentcli.cmd               # Windows 启动脚本
+└── config.properties              # 配置文件（可选）</code></pre>
+
+<h1>十二、常见问题</h1>
+
+<h2>Q1: 启动时报 "Module enable-native-access" 错误</h2>
+<p>需要添加 JVM 参数：<code>--enable-native-access=ALL-UNNAMED</code>。使用提供的包装脚本可自动添加此参数。</p>
+
+<h2>Q2: 如何切换 AI 模型？</h2>
+<div class="config-block">修改 config.properties 中的 agent.model 和 agent.base_url，然后在 CLI 中执行 /reload</div>
+
+<h2>Q3: bash 工具默认禁用，如何开启？</h2>
+<div class="config-block">在 config.properties 中设置：
+agent.bash_enabled=true</div>
+<p>或使用 <code>/reload</code> 热重载。</p>
+
+<h2>Q4: 如何查看 token 使用情况？</h2>
+<p>输入 <code>/context</code> 命令，会显示彩色的 token 使用分布图。</p>
+
+<h2>Q5: 会话数据保存在哪里？</h2>
+<div class="config-block">~/.javaagent-cli/sessions/</div>
+<p>格式为 JSON。</p>
+
+<h2>Q6: 如何自定义系统提示词？</h2>
+<div class="config-block">/prompt set &lt;文本&gt;     # 设置自定义提示词
+/prompt reset           # 恢复默认</div>
+
+<div class="footer">
+  JavaAgent-CLI 开发和安装手册 · 四川农业大学信息工程学院 · 2026 年 6 月
+</div>
+
+</body>
+</html>

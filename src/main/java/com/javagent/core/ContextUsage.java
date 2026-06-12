@@ -1,7 +1,7 @@
 package com.javagent.core;
 
 /**
- * Token usage breakdown for the current context window.
+ * 当前上下文窗口的 token 使用分布。
  */
 public record ContextUsage(
         int systemPromptTokens,
@@ -10,12 +10,12 @@ public record ContextUsage(
         int totalTokens,
         int maxTokens
 ) {
-    /** Percentage of context used (0.0 - 1.0) */
+    /** 上下文使用百分比（0.0 - 1.0） */
     public double usagePercent() {
         return maxTokens > 0 ? (double) totalTokens / maxTokens : 0.0;
     }
 
-    /** Free tokens remaining */
+    /** 剩余可用 token 数 */
     public int freeTokens() {
         return Math.max(0, maxTokens - totalTokens);
     }

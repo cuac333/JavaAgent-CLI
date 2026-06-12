@@ -9,7 +9,7 @@
 - **SSE 流式推理** — 逐 token 实时输出，支持 reasoning_content 思维链
 - **Human-in-the-Loop** — 只读操作自动放行，写操作需用户显式批准
 - **Token 级上下文可视化** — `/context` 命令用真实 token 数计量上下文占用，彩色柱状图分类显示
-- **推理深度控制** — 5 级 effort（low/high/xhigh/max/ultra），交互式滑块选择，ultra 霓虹特效
+- **推理深度控制** — 5 级 effort（low/high/xhigh/max/ultra），交互式滑块选择，ultra 霓虹特效、
 - **安全沙箱** — 工作区隔离、危险命令检测、敏感信息脱敏、连续失败保护
 - **跨平台** — Windows（PowerShell/cmd.exe）/ macOS / Linux，统一处理 `\n` 和 `\r\n` 换行符
 
@@ -41,7 +41,6 @@ java --enable-native-access=ALL-UNNAMED -jar target/javaagent-cli-1.0.0.jar
 ```
 > 帮我读取 src/Main.java 的前 20 行
 > 搜索项目中所有 TODO 注释
-> 把 Foo.java 里的 oldMethod 改名为 newMethod
 ```
 
 输入 `/` 可查看所有斜杠命令，上下键浏览，Tab 确认。
@@ -54,35 +53,35 @@ java --enable-native-access=ALL-UNNAMED -jar target/javaagent-cli-1.0.0.jar
 
 1. **Observation** — 接收用户输入，连同对话历史注入上下文窗口
 2. **Reasoning** — LLM 基于 System Prompt 和工具定义进行推理，决定下一步行动
-3. **Action** — 若模型返回 `tool_calls`，Agent 调用对应工具并获取执行结果
+3. **Acting** — 若模型返回 `tool_calls`，Agent 调用对应工具并获取执行结果
 4. **Reflection** — 工具结果回灌至上下文，模型基于新观察继续推理或生成最终回复
 5. **Loop** — 重复步骤 2-4，直至模型产出纯文本回复或达到最大迭代次数
 
 ```text
                     ┌─────────────────────────────┐
-                    │        User Input            │
+                    │        User Input           │
                     └──────────────┬──────────────┘
                                    ▼
                     ┌──────────────────────────────┐
-                    │   Context Window Management   │
-                    │   (ConversationManager)       │
+                    │   Context Window Management  │
+                    │   (ConversationManager)      │
                     └──────────────┬───────────────┘
                                    ▼
                     ┌──────────────────────────────┐
-                    │   LLM Inference (chat)        │
-                    │   ├─ MockModelClient          │
-                    │   └─ OpenAI-Compatible Client  │
+                    │   LLM Inference (chat)       │
+                    │   ├─ MockModelClient         │
+                    │   └─ OpenAI-Compatible Client│
                     └──────────────┬───────────────┘
                                    ▼
                       ┌────────────┴────────────┐
-                      │     Response Type?       │
+                      │     Response Type?      │
                       └────────────┬────────────┘
                ┌───────────────────┼───────────────────┐
                ▼                   ▼                   ▼
           ┌─────────┐      ┌─────────────┐      ┌─────────┐
-          │  TEXT    │      │ TOOL_CALLS  │      │  ERROR  │
-          │ Final    │      │ Function    │      │ Handle  │
-          │ Reply    │      │ Calling     │      │ & Exit  │
+          │  TEXT   │      │ TOOL_CALLS  │      │  ERROR  │
+          │ Final   │      │ Function    │      │ Handle  │
+          │ Reply   │      │ Calling     │      │ & Exit  │
           └─────────┘      └──────┬──────┘      └─────────┘
                                   ▼
                       ┌───────────────────────┐
@@ -107,8 +106,8 @@ java --enable-native-access=ALL-UNNAMED -jar target/javaagent-cli-1.0.0.jar
 
 | 机制 | 说明 |
 |---|---|
-| **ReAct Loop** | 推理-行动交替循环，最多 12 轮（可配置），支持多步工具编排 |
-| **Human-in-the-Loop** | 只读操作自动放行，写操作需用户显式批准，外部路径默认拒绝 |
+| **ReAct Loop** | 推理-行动交替循环，最多 ***12 轮***（可配置），支持多步工具编排 |
+| **Human-in-the-Loop** | 只读操作自动放行，修改操作需用户显式批准，外部路径默认拒绝 |
 | **Streaming Inference** | SSE 逐 token 流式输出，支持 `reasoning_content` 思维链 |
 | **Effort Control** | 5 级推理深度（low/high/xhigh/max/ultra），交互式滑块选择，ultra 霓虹动画 |
 | **Failure Recovery** | 同一工具连续失败 3 次自动中断，防止无限循环 |
@@ -233,3 +232,11 @@ mvn test
 ```
 
 66 个 JUnit 5 测试用例，覆盖 Agent 循环、工具执行、审批策略、配置管理、会话持久化等核心模块。
+
+## 开源协议
+
+本项目采用 [MIT 开源协议](LICENSE)（MIT License）发布。
+
+版权所有 © 2026 四川农业大学信息工程学院 JavaAgent-CLI 开发团队。
+
+在遵守 MIT 协议条款的前提下，任何人都可以自由使用、复制、修改、合并、发布、分发、再许可和/或出售本软件的副本。

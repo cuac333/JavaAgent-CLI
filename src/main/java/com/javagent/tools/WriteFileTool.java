@@ -28,11 +28,11 @@ public class WriteFileTool implements Tool {
 
     private static final ToolDefinition DEFINITION = new ToolDefinition(
             "write_file",
-            "Write UTF-8 text to a file, optionally appending.",
+            "将 UTF-8 文本写入文件，可选追加模式。",
             Map.of(
-                    "path", "File path to write.",
-                    "content", "UTF-8 text content to store.",
-                    "append", "Whether content should be appended instead of overwritten."
+                    "path", "要写入的文件路径。",
+                    "content", "要存储的 UTF-8 文本内容。",
+                    "append", "是否以追加方式写入（而非覆盖）。"
             ),
             Map.of(
                     "path", "string",
@@ -55,19 +55,19 @@ public class WriteFileTool implements Tool {
     public ToolExecutionResult execute(Map<String, Object> input) {
         String rawPath = FileToolSupport.stringValue(input.get("path"));
         if (rawPath.isBlank()) {
-            return ToolExecutionResult.error("write_file requires a non-empty path.");
+            return ToolExecutionResult.error("write_file 需要一个非空路径。");
         }
 
         String content = input.get("content") == null ? "" : input.get("content").toString();
         if (content.length() > MAX_CONTENT_CHARS) {
-            return ToolExecutionResult.error("Content is too large to write safely.");
+            return ToolExecutionResult.error("内容过大，无法安全写入。");
         }
 
         Path path;
         try {
             path = FileToolSupport.normalizePath(rawPath);
         } catch (InvalidPathException e) {
-            return ToolExecutionResult.error("Invalid path: " + rawPath);
+            return ToolExecutionResult.error("无效的路径：" + rawPath);
         }
 
         String wsError = FileToolSupport.checkInsideWorkspace(path);
@@ -79,10 +79,10 @@ public class WriteFileTool implements Tool {
 
         try {
             if (Files.exists(path) && Files.isDirectory(path)) {
-                return ToolExecutionResult.error("Path is a directory, not a file: " + path);
+                return ToolExecutionResult.error("路径是目录而非文件：" + path);
             }
             if (Files.exists(path) && Files.isRegularFile(path) && FileToolSupport.isBinary(path)) {
-                return ToolExecutionResult.error("Refusing to overwrite a binary file.");
+                return ToolExecutionResult.error("拒绝覆盖二进制文件。");
             }
             if (path.getParent() != null) {
                 Files.createDirectories(path.getParent());
@@ -107,14 +107,14 @@ public class WriteFileTool implements Tool {
                 );
             }
 
-            String summary = "Wrote " + content.length() + " characters to " + path.toAbsolutePath() + " (append=" + append + ").";
+            String summary = "已写入 " + content.length() + " 个字符到 " + path.toAbsolutePath() + "（追加=" + append + "）。";
             String preview = buildPreview(content);
             if (preview != null) {
                 summary += System.lineSeparator() + preview;
             }
             return ToolExecutionResult.success(summary);
         } catch (IOException e) {
-            return ToolExecutionResult.error("Failed to write file: " + e.getMessage());
+            return ToolExecutionResult.error("写入文件失败：" + e.getMessage());
         }
     }
 
@@ -126,13 +126,13 @@ public class WriteFileTool implements Tool {
 
         int show = Math.min(lines.length, PREVIEW_MAX_LINES);
         StringBuilder sb = new StringBuilder();
-        sb.append("Preview (").append(show).append("/").append(lines.length).append(" lines):\n");
+        sb.append("预览（").append(show).append("/").append(lines.length).append(" 行）：\n");
         sb.append("```\n");
         for (int i = 0; i < show; i++) {
             sb.append(String.format("%4d│ %s%n", i + 1, lines[i]));
         }
         if (lines.length > PREVIEW_MAX_LINES) {
-            sb.append("    ... (").append(lines.length - PREVIEW_MAX_LINES).append(" more lines)\n");
+            sb.append("    ...（还有 ").append(lines.length - PREVIEW_MAX_LINES).append(" 行）\n");
         }
         sb.append("```");
         return sb.toString();

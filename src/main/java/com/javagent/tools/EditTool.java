@@ -12,23 +12,22 @@ import java.util.Set;
 import static com.javagent.util.Terminal.splitLines;
 
 /**
- * Edit tool — replace exact string occurrences in a file.
+ * 编辑工具 —— 精确替换文件中的字符串
  *
- * The old_string must match exactly (including whitespace/indentation).
- * If exact match fails, the actual file content near the expected location
- * is returned so the model can see the real content and retry correctly.
+ * old_string 必须精确匹配（包括空白字符/缩进）。
+ * 如果精确匹配失败，会返回预期位置附近的实际文件内容，
+ * 以便模型查看真实内容并正确重试。
  */
 public class EditTool implements Tool {
 
     private static final ToolDefinition DEFINITION = new ToolDefinition(
             "edit",
-            "Replace exact text in a file. old_string must match exactly including whitespace. "
-                    + "Use replace_all=true to replace all occurrences.",
+            "精确替换文件中的文本。old_string 必须精确匹配（包括空白字符）。使用 replace_all=true 可替换所有匹配项。",
             Map.of(
-                    "path", "File path to edit.",
-                    "old_string", "Exact text to find (must match including whitespace).",
-                    "new_string", "Replacement text.",
-                    "replace_all", "If true, replace all occurrences. Default false."
+                    "path", "要编辑的文件路径。",
+                    "old_string", "要查找的精确文本（必须包含空白字符精确匹配）。",
+                    "new_string", "替换文本。",
+                    "replace_all", "为 true 时替换所有匹配项，默认为 false。"
             ),
             Map.of(
                     "path", "string",
@@ -52,14 +51,14 @@ public class EditTool implements Tool {
     public ToolExecutionResult execute(Map<String, Object> input) {
         String rawPath = FileToolSupport.stringValue(input.get("path"));
         if (rawPath.isBlank()) {
-            return ToolExecutionResult.error("edit requires a non-empty path.");
+            return ToolExecutionResult.error("edit 需要一个非空路径。");
         }
 
         Path path;
         try {
             path = FileToolSupport.normalizePath(rawPath);
         } catch (InvalidPathException e) {
-            return ToolExecutionResult.error("Invalid path: " + rawPath);
+            return ToolExecutionResult.error("无效的路径：" + rawPath);
         }
 
         String wsError = FileToolSupport.checkInsideWorkspace(path);
@@ -68,27 +67,27 @@ public class EditTool implements Tool {
         }
 
         if (!Files.exists(path)) {
-            return ToolExecutionResult.error("File not found: " + path);
+            return ToolExecutionResult.error("文件未找到：" + path);
         }
         if (!Files.isRegularFile(path)) {
-            return ToolExecutionResult.error("Path is not a regular file: " + path);
+            return ToolExecutionResult.error("路径不是普通文件：" + path);
         }
 
         String oldString = input.get("old_string") == null ? "" : input.get("old_string").toString();
         String newString = input.get("new_string") == null ? "" : input.get("new_string").toString();
 
         if (oldString.isEmpty()) {
-            return ToolExecutionResult.error("edit requires a non-empty old_string.");
+            return ToolExecutionResult.error("edit 需要一个非空的 old_string。");
         }
         if (oldString.equals(newString)) {
-            return ToolExecutionResult.error("old_string and new_string are identical.");
+            return ToolExecutionResult.error("old_string 和 new_string 完全相同。");
         }
 
         boolean replaceAll = FileToolSupport.booleanValue(input.get("replace_all"), false);
 
         try {
             if (FileToolSupport.isBinary(path)) {
-                return ToolExecutionResult.error("Cannot edit binary files.");
+                return ToolExecutionResult.error("无法编辑二进制文件。");
             }
 
             String content = Files.readString(path, StandardCharsets.UTF_8);
@@ -99,12 +98,12 @@ public class EditTool implements Tool {
             }
             if (count > 1 && !replaceAll) {
                 return ToolExecutionResult.error(
-                        "old_string appears " + count + " times. Use replace_all=true to replace all, "
-                                + "or provide more surrounding context to make it unique."
+                        "old_string 出现了 " + count + " 次。使用 replace_all=true 可替换所有匹配项，"
+                                + "或提供更多周围上下文使其唯一。"
                 );
             }
 
-            // Exact match — apply edit
+            // 精确匹配 —— 应用编辑
             String newContent;
             int changeStartLine = 0;
             if (replaceAll) {
@@ -119,27 +118,27 @@ public class EditTool implements Tool {
             String[] oldLines = splitLines(oldString);
             String[] newLines = splitLines(newString);
             String nl = System.lineSeparator();
-            String summary = "Edited " + path.toAbsolutePath()
-                    + " (-" + oldLines.length + " lines, +" + newLines.length + " lines)" + nl
+            String summary = "已编辑 " + path.toAbsolutePath()
+                    + "（-" + oldLines.length + " 行，+" + newLines.length + " 行）" + nl
                     + "```diff" + nl + generateDiff(oldLines, newLines, changeStartLine) + "```";
             return ToolExecutionResult.success(summary);
 
         } catch (IOException e) {
-            return ToolExecutionResult.error("Failed to edit file: " + e.getMessage());
+            return ToolExecutionResult.error("编辑文件失败：" + e.getMessage());
         }
     }
 
-    // ─────────── Content hint on mismatch ───────────
+    // ─────────── 不匹配时的内容提示 ───────────
 
     /**
-     * When exact match fails, show the file content near the best guess location
-     * so the model can see the actual text and construct the correct old_string.
+     * 当精确匹配失败时，显示最佳猜测位置附近的文件内容，
+     * 以便模型查看实际文本并构造正确的 old_string。
      */
     private ToolExecutionResult buildContentHint(String content, String oldString) {
         String[] contentLines = splitLines(content);
         String[] oldLines = splitLines(oldString);
 
-        // Find the most distinctive line from old_string
+        // 从 old_string 中找到最具特征的行
         String probe = "";
         for (String line : oldLines) {
             String stripped = line.strip();
@@ -148,7 +147,7 @@ public class EditTool implements Tool {
             }
         }
 
-        // Search for it in the file
+        // 在文件中搜索该行
         int foundLine = -1;
         if (probe.length() >= 6) {
             for (int i = 0; i < contentLines.length; i++) {
@@ -160,24 +159,24 @@ public class EditTool implements Tool {
         }
 
         StringBuilder msg = new StringBuilder();
-        msg.append("old_string not found exactly. ");
+        msg.append("old_string 未精确找到。");
 
         if (foundLine >= 0) {
             int ctxStart = Math.max(0, foundLine - 2);
             int ctxEnd = Math.min(contentLines.length, foundLine + oldLines.length + 3);
-            msg.append("File content near the expected location (lines ")
-                .append(ctxStart + 1).append("-").append(ctxEnd).append("):\n");
+            msg.append("预期位置附近的文件内容（第 ")
+                .append(ctxStart + 1).append("-").append(ctxEnd).append(" 行）：\n");
             msg.append("```\n");
             for (int i = ctxStart; i < ctxEnd; i++) {
                 String marker = (i == foundLine) ? " >>> " : "     ";
                 msg.append(String.format("%4d%s%s%n", i + 1, marker, contentLines[i]));
             }
             msg.append("```\n");
-            msg.append("Compare with your old_string and fix whitespace/indentation differences.");
+            msg.append("请与您的 old_string 进行比较，并修复空白字符/缩进差异。");
         } else {
-            // Couldn't find a match at all — show first 30 lines
+            // 完全找不到匹配 —— 显示前 30 行
             int show = Math.min(contentLines.length, 30);
-            msg.append("First ").append(show).append(" lines of the file:\n");
+            msg.append("文件的前 ").append(show).append(" 行：\n");
             msg.append("```\n");
             for (int i = 0; i < show; i++) {
                 msg.append(String.format("%4d     %s%n", i + 1, contentLines[i]));
@@ -188,7 +187,7 @@ public class EditTool implements Tool {
         return ToolExecutionResult.error(msg.toString());
     }
 
-    // ─────────── Diff preview ───────────
+    // ─────────── 差异预览 ───────────
 
     private String generateDiff(String[] oldLines, String[] newLines, int changeStartLine) {
         String nl = System.lineSeparator();
@@ -205,7 +204,7 @@ public class EditTool implements Tool {
         return diff.toString();
     }
 
-    // ─────────── Helpers ───────────
+    // ─────────── 辅助方法 ───────────
 
     private int countOccurrences(String text, String pattern) {
         int count = 0;

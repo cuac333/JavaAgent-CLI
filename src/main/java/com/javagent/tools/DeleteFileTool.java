@@ -21,8 +21,8 @@ import java.util.Set;
 public class DeleteFileTool implements Tool {
     private static final ToolDefinition DEFINITION = new ToolDefinition(
             "delete_file",
-            "Delete a regular file. Directories are not supported.",
-            Map.of("path", "File path to delete."),
+            "删除普通文件。不支持删除目录。",
+            Map.of("path", "要删除的文件路径。"),
             Map.of("path", "string"),
             Set.of("path"),
             true,
@@ -40,14 +40,14 @@ public class DeleteFileTool implements Tool {
     public ToolExecutionResult execute(Map<String, Object> input) {
         String rawPath = FileToolSupport.stringValue(input.get("path"));
         if (rawPath.isBlank()) {
-            return ToolExecutionResult.error("delete_file requires a non-empty path.");
+            return ToolExecutionResult.error("delete_file 需要一个非空路径。");
         }
 
         Path path;
         try {
             path = FileToolSupport.normalizePath(rawPath);
         } catch (InvalidPathException e) {
-            return ToolExecutionResult.error("Invalid path: " + rawPath);
+            return ToolExecutionResult.error("无效的路径：" + rawPath);
         }
 
         String wsError = FileToolSupport.checkInsideWorkspace(path);
@@ -56,17 +56,17 @@ public class DeleteFileTool implements Tool {
         }
 
         if (!Files.exists(path)) {
-            return ToolExecutionResult.error("File not found: " + path);
+            return ToolExecutionResult.error("文件未找到：" + path);
         }
         if (!Files.isRegularFile(path)) {
-            return ToolExecutionResult.error("delete_file only supports regular files: " + path);
+            return ToolExecutionResult.error("delete_file 仅支持普通文件：" + path);
         }
 
         try {
             Files.delete(path);
-            return ToolExecutionResult.success("Deleted file: " + path.toAbsolutePath());
+            return ToolExecutionResult.success("已删除文件：" + path.toAbsolutePath());
         } catch (IOException e) {
-            return ToolExecutionResult.error("Failed to delete file: " + e.getMessage());
+            return ToolExecutionResult.error("删除文件失败：" + e.getMessage());
         }
     }
 }

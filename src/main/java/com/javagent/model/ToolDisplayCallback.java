@@ -1,18 +1,18 @@
 package com.javagent.model;
 
 /**
- * Callback for displaying tool execution progress in the CLI.
- * The Agent calls these methods so the UI can show colored spinners,
- * tool names, and result summaries.
+ * CLI 中工具执行进度的显示回调。
+ * Agent 调用这些方法，以便 UI 显示彩色旋转动画、
+ * 工具名称和结果摘要。
  */
 public interface ToolDisplayCallback {
-    /** Called when a tool call begins execution */
+    /** 工具调用开始执行时调用 */
     void onToolStart(String toolName, String summary);
 
-    /** Called when a tool call completes */
+    /** 工具调用完成时调用 */
     void onToolEnd(String toolName, boolean success, String resultSummary);
 
-    /** Called when a tool call completes, with full result content for rich display */
+    /** 工具调用完成时调用，包含完整结果内容用于富文本显示 */
     default void onToolEnd(String toolName, boolean success, String resultSummary, String fullContent) {
         onToolEnd(toolName, success, resultSummary);
     }
