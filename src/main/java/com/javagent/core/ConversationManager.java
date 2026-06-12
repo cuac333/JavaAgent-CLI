@@ -261,21 +261,21 @@ public class ConversationManager {
     public String exportAsMarkdown() {
         StringBuilder sb = new StringBuilder();
         sb.append("# ").append(currentSessionTitle).append("\n\n");
-        sb.append("**Session ID:** `").append(shortId(currentSessionId)).append("`  \n");
-        sb.append("**Started:** ").append(sessionStart.format(TITLE_FORMAT)).append("  \n");
-        sb.append("**Messages:** ").append(messages.size()).append("\n\n");
+        sb.append("**会话 ID:** `").append(shortId(currentSessionId)).append("`  \n");
+        sb.append("**开始时间:** ").append(sessionStart.format(TITLE_FORMAT)).append("  \n");
+        sb.append("**消息数:** ").append(messages.size()).append("\n\n");
         sb.append("---\n\n");
 
         for (Message msg : messages) {
             switch (msg.role()) {
                 case USER -> {
-                    sb.append("## User\n\n");
+                    sb.append("## 用户\n\n");
                     sb.append(msg.content() != null ? msg.content() : "").append("\n\n");
                 }
                 case ASSISTANT -> {
-                    sb.append("## Assistant\n\n");
+                    sb.append("## 助手\n\n");
                     if (msg.reasoningContent() != null && !msg.reasoningContent().isBlank()) {
-                        sb.append("<details><summary>Thinking</summary>\n\n");
+                        sb.append("<details><summary>思考过程</summary>\n\n");
                         sb.append(msg.reasoningContent()).append("\n\n");
                         sb.append("</details>\n\n");
                     }
@@ -284,7 +284,7 @@ public class ConversationManager {
                     }
                     if (msg.toolCalls() != null) {
                         for (var tc : msg.toolCalls()) {
-                            sb.append("### Tool Call: `").append(tc.name()).append("`\n\n");
+                            sb.append("### 工具调用: `").append(tc.name()).append("`\n\n");
                             sb.append("```json\n").append(tc.input()).append("\n```\n\n");
                         }
                     }
@@ -292,11 +292,11 @@ public class ConversationManager {
                 case TOOL -> {
                     String name = (msg.toolResult() != null && msg.toolResult().toolName() != null)
                             ? msg.toolResult().toolName() : "tool";
-                    sb.append("## Tool Result: `").append(name).append("`\n\n");
+                    sb.append("## 工具结果: `").append(name).append("`\n\n");
                     sb.append("```\n").append(msg.content() != null ? msg.content() : "").append("\n```\n\n");
                 }
                 case SYSTEM -> {
-                    sb.append("## System\n\n");
+                    sb.append("## 系统\n\n");
                     sb.append(msg.content() != null ? msg.content() : "").append("\n\n");
                 }
             }
@@ -340,7 +340,7 @@ public class ConversationManager {
             int messageCount = snapshot.messages() == null ? 0 : snapshot.messages().size();
             return new SessionSummary(id, title, updated, messageCount);
         } catch (IOException e) {
-            LOG.log(Level.FINE, "Failed to read session summary: " + file, e);
+            LOG.log(Level.FINE, "读取会话摘要失败: " + file, e);
             return null;
         }
     }
@@ -363,12 +363,12 @@ public class ConversationManager {
     }
 
     private String defaultTitle(LocalDateTime time) {
-        return "Session " + TITLE_FORMAT.format(time);
+        return "会话 " + TITLE_FORMAT.format(time);
     }
 
     private String shortId(String sessionId) {
         if (sessionId == null || sessionId.isBlank()) {
-            return "n/a";
+            return "无";
         }
         return sessionId.length() <= 8 ? sessionId : sessionId.substring(0, 8);
     }

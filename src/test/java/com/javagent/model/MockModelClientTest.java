@@ -48,7 +48,7 @@ class MockModelClientTest {
         ModelResponse response = client.chat("", List.of(Message.user("读取 pom.xml"), toolMessage), tools);
 
         assertTrue(response.isText());
-        assertTrue(response.content().contains("I read the requested file"));
+        assertTrue(response.content().contains("已成功读取请求的文件"));
     }
 
     @Test

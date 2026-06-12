@@ -40,7 +40,7 @@ final class BannerPrinter {
 
         String modelInfo = (config.isMockMode() ? yellow("mock") : green("real"))
                 + dim(" · ") + cyan(config.model())
-                + dim(" · ") + toolRegistry.definitions().size() + " tools";
+                + dim(" · ") + toolRegistry.definitions().size() + " 个工具";
 
         out.println();
         String titlePart = "JavaAgent CLI v" + version;
@@ -79,7 +79,7 @@ final class BannerPrinter {
     }
 
     /**
-     * Print a compact one-line status bar (can be called after config changes).
+     * 打印紧凑的单行状态栏（配置变更后可调用）。
      */
     static void printStatusLine(Config config, ToolRegistry toolRegistry, PrintWriter out) {
         String mode = config.isMockMode() ? yellow("mock") : green("real");
@@ -98,7 +98,7 @@ final class BannerPrinter {
         };
 
         out.println(dim("  ─ ") + mode + dim(" · ") + model + dim(" · ")
-                + toolCount + " tools" + dim(" │ ")
+                + toolCount + " 个工具" + dim(" │ ")
                 + dim("流式:") + stream + dim(" │ ")
                 + dim("Bash:") + bash + dim(" │ ")
                 + dim("审批:") + bypass + dim(" │ ")

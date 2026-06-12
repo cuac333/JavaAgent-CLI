@@ -27,17 +27,17 @@ public class BashTool implements Tool {
     private static final int DEFAULT_TIMEOUT_SECONDS = 10;
     private static final int MAX_OUTPUT_CHARS = 50_000;
 
-    // Platform detection — computed once, invariant for JVM lifetime
+    // 平台检测 —— 仅计算一次，JVM 生命周期内不变
     private static final boolean IS_WINDOWS = System.getProperty("os.name", "").toLowerCase().contains("win");
-    // PowerShell availability — computed once on first bash invocation
+    // PowerShell 可用性 —— 首次调用 bash 时计算一次
     private static volatile Boolean powershellAvailable;
 
     private static final ToolDefinition DEFINITION = new ToolDefinition(
             "bash",
-            "Run a shell command. This tool is disabled by default and always requires approval.",
+            "执行 shell 命令。此工具默认禁用，每次执行都需要用户确认。",
             Map.of(
-                    "command", "Shell command to execute.",
-                    "timeoutSeconds", "Maximum runtime before the process is terminated."
+                    "command", "要执行的 shell 命令。",
+                    "timeoutSeconds", "进程被终止前的最大运行时间（秒）。"
             ),
             Map.of(
                     "command", "string",
@@ -59,10 +59,10 @@ public class BashTool implements Tool {
     public ToolExecutionResult execute(Map<String, Object> input) {
         String command = FileToolSupport.stringValue(input.get("command"));
         if (command.isBlank()) {
-            return ToolExecutionResult.error("bash requires a non-empty command.");
+            return ToolExecutionResult.error("bash 需要一个非空命令。");
         }
         if (looksDangerous(command)) {
-            return ToolExecutionResult.error("Command rejected by the built-in safety policy.");
+            return ToolExecutionResult.error("命令被内置安全策略拒绝。");
         }
 
         int timeoutSeconds = FileToolSupport.intValue(input.get("timeoutSeconds"), DEFAULT_TIMEOUT_SECONDS);
@@ -78,7 +78,7 @@ public class BashTool implements Tool {
                 while ((line = reader.readLine()) != null) {
                     builder.append(line).append(System.lineSeparator());
                     if (builder.length() > MAX_OUTPUT_CHARS) {
-                        builder.append("... (output truncated)");
+                        builder.append("...（输出已截断）");
                         break;
                     }
                 }
@@ -88,7 +88,7 @@ public class BashTool implements Tool {
             boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
             if (!finished) {
                 process.destroyForcibly();
-                return ToolExecutionResult.error("Command timed out after " + timeoutSeconds + " seconds.");
+                return ToolExecutionResult.error("命令在 " + timeoutSeconds + " 秒后超时。");
             }
 
             String result = "$ " + command + System.lineSeparator() + output + System.lineSeparator() + "[exit=" + process.exitValue() + "]";
@@ -98,13 +98,13 @@ public class BashTool implements Tool {
             return ToolExecutionResult.error(result.trim());
         } catch (IOException | InterruptedException e) {
             Thread.currentThread().interrupt();
-            return ToolExecutionResult.error("Command execution failed: " + e.getMessage());
+            return ToolExecutionResult.error("命令执行失败：" + e.getMessage());
         }
     }
 
     private static ProcessBuilder buildProcess(String command) {
         if (IS_WINDOWS) {
-            // Prefer PowerShell (more capable, syntax closer to Unix), fallback to cmd.exe
+            // 优先使用 PowerShell（功能更强，语法更接近 Unix），回退到 cmd.exe
             if (isPowerShellAvailable()) {
                 return new ProcessBuilder("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command);
             }
@@ -113,14 +113,14 @@ public class BashTool implements Tool {
         return new ProcessBuilder("/bin/bash", "-lc", command);
     }
 
-    /** Check if PowerShell is available, caching the result for JVM lifetime */
+    /** 检查 PowerShell 是否可用，结果在 JVM 生命周期内缓存 */
     private static boolean isPowerShellAvailable() {
         if (powershellAvailable != null) return powershellAvailable;
         powershellAvailable = isCommandAvailable("powershell.exe");
         return powershellAvailable;
     }
 
-    /** Check if a command is available on the system PATH (runs once, result cached) */
+    /** 检查命令是否在系统 PATH 中可用（仅执行一次，结果缓存） */
     private static boolean isCommandAvailable(String cmd) {
         Process p = null;
         try {
@@ -137,50 +137,50 @@ public class BashTool implements Tool {
     }
 
     private boolean looksDangerous(String command) {
-        // Normalize: lowercase, collapse whitespace, strip quotes to defeat trivial obfuscation
+        // 规范化：转小写、合并空白、去除引号以防止简单混淆
         String normalized = command.toLowerCase()
                 .replaceAll("[\"']", "")
                 .replaceAll("\\s+", " ")
                 .trim();
 
-        // ── Windows-specific dangerous commands ──
+        // ── Windows 专用危险命令 ──
         if (IS_WINDOWS) {
-            // Recursive delete
+            // 递归删除
             if (Pattern.matches(".*\\b(del|erase)\\s+(/s|/q|/s\\s+/q)(\\s|$).*", normalized)) return true;
             if (Pattern.matches(".*\\b(rd|rmdir)\\s+(/s|/q|/s\\s+/q)(\\s|$).*", normalized)) return true;
             if (Pattern.matches(".*Remove-Item\\s+(-Recurse|-Force|-Recurse\\s+-Force)(\\s|$).*", normalized)) return true;
             if (Pattern.matches(".*rm\\s+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r)(\\s|$).*", normalized)) return true;
 
-            // Format disk
+            // 格式化磁盘
             if (Pattern.matches(".*\\bformat\\s+[a-z]:(\\s|$).*", normalized)) return true;
 
-            // System halt / reboot (flags can appear anywhere)
+            // 系统关机/重启（标志可出现在任意位置）
             if (Pattern.matches(".*\\b(shutdown|restart)\\b.*\\b(/s|/r|/f|/t)\\b.*", normalized)) return true;
             if (Pattern.matches(".*Stop-Computer(\\s|$).*", normalized)) return true;
             if (Pattern.matches(".*Restart-Computer(\\s|$).*", normalized)) return true;
 
-            // Kill critical processes (/f /t flags can appear anywhere)
+            // 终止关键进程（/f /t 标志可出现在任意位置）
             if (Pattern.matches(".*\\btaskkill\\b.*\\b(/f|/t)\\b.*\\b(system|wininit|csrss|smss|lsass)\\b.*", normalized)) return true;
 
-            // Modify boot config
+            // 修改启动配置
             if (Pattern.matches(".*\\bbcdedit(\\s|$).*", normalized)) return true;
 
-            // Modify execution policy (security bypass)
+            // 修改执行策略（安全绕过）
             if (Pattern.matches(".*Set-ExecutionPolicy\\s+(Bypass|Unrestricted|RemoteSigned)(\\s|$).*", normalized)) return true;
 
-            // Cipher wipe (secure delete)
+            // 密码擦除（安全删除）
             if (Pattern.matches(".*\\bcipher\\s+/w(\\s|$).*", normalized)) return true;
 
-            // Take ownership of system dirs
+            // 获取系统目录所有权
             if (Pattern.matches(".*\\btakeown\\b.*\\b(/s|/f)\\b.*", normalized)) return true;
             if (Pattern.matches(".*icacls\\s+[a-z]:\\\\(\\s|$).*", normalized)) return true;
         }
 
-        // 1. Filesystem destruction: rm -rf targeting root, home, or wildcard
+        // 1. 文件系统破坏：rm -rf 针对根目录、home 目录或通配符
         if (Pattern.matches(".*rm\\s+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r)\\s*(/|~|\\.\\.?|\\*)\\s*.*", normalized)) {
             return true;
         }
-        // rm -r / (without -f, still destructive)
+        // rm -r /（没有 -f，仍然具有破坏性）
         if (Pattern.matches(".*rm\\s+-[a-zA-Z]*r[a-zA-Z]*\\s+(/|~)\\s*.*", normalized)) {
             return true;
         }
@@ -189,39 +189,39 @@ public class BashTool implements Tool {
             return true;
         }
 
-        // 2. Disk/device operations
+        // 2. 磁盘/设备操作
         if (Pattern.matches(".*mkfs\\s.*", normalized)) return true;
         if (Pattern.matches(".*dd\\s+if=.*of=/dev/.*", normalized)) return true;
         if (Pattern.matches(".*(fdisk|parted|sfdisk)\\s+(/dev/|[a-z])", normalized)) return true;
 
-        // 3. Fork bombs
+        // 3. Fork 炸弹
         if (Pattern.matches(".*:\\(\\)\\s*\\{.*", normalized)) return true;  // :(){ ... };:
         if (normalized.contains("|&") && normalized.contains(":")) return true;
 
-        // 4. Pipe-to-shell: curl/wget piping directly to sh/bash
+        // 4. 管道到 shell：curl/wget 直接管道到 sh/bash
         if (Pattern.matches(".*(curl|wget)\\s.*\\|\\s*(sh|bash|zsh|python|perl).*", normalized)) return true;
 
-        // 5. System halt/reboot/poweroff
+        // 5. 系统关机/重启/断电
         if (Pattern.matches(".*(shutdown|halt|reboot|poweroff|init\\s+[06])\\s.*", normalized)) return true;
 
-        // 6. Kill PID 1 or kill all processes
+        // 6. 终止 PID 1 或终止所有进程
         if (Pattern.matches(".*kill\\s+(-9\\s+)?1(\\s|$).*", normalized)) return true;
         if (Pattern.matches(".*kill\\s+-9\\s+-1(\\s|$).*", normalized)) return true;
         if (Pattern.matches(".*pkill\\s+(-9\\s+)?-1(\\s|$).*", normalized)) return true;
 
-        // 7. Recursive chmod 777 / chown on root
+        // 7. 递归 chmod 777 / chown 根目录
         if (Pattern.matches(".*chmod\\s+(-R\\s+)?777\\s+/(\\s|$).*", normalized)) return true;
         if (Pattern.matches(".*chown\\s+.*\\s+/(\\s|$).*", normalized)) return true;
 
-        // 8. /etc/passwd or /etc/shadow modification
+        // 8. 修改 /etc/passwd 或 /etc/shadow
         if (Pattern.matches(".*(>|>>)\\s*/etc/(passwd|shadow|sudoers).*", normalized)) return true;
         if (Pattern.matches(".*chmod\\s+.*\\s+/etc/(passwd|shadow).*", normalized)) return true;
 
-        // 9. Network exfiltration via curl/wget POST
+        // 9. 通过 curl/wget POST 进行网络数据外泄
         if (Pattern.matches(".*curl\\s+.*-d\\s.*@.*", normalized)) return true;
         if (Pattern.matches(".*wget\\s+.*--post-file.*", normalized)) return true;
 
-        // 10. Reverse shell patterns
+        // 10. 反向 shell 模式
         if (Pattern.matches(".*nc\\s+.*-e\\s+/(bin/)?(ba)?sh.*", normalized)) return true;
         if (Pattern.matches(".*bash\\s+-i\\s+>&\\s+/dev/tcp/.*", normalized)) return true;
         if (Pattern.matches(".*python.*socket.*connect.*", normalized)) return true;

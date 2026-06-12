@@ -49,11 +49,11 @@ import com.javagent.util.MarkdownRenderer;
 import static com.javagent.util.Terminal.*;
 
 /**
- * JavaAgent CLI — main entry point.
+ * JavaAgent CLI —— 主入口。
  *
- * Claude Code-style interactive REPL with ANSI colors,
- * tool execution indicators, SSE streaming, and edit tool.
- * Uses JLine3 for line editing, history, and slash command autocomplete.
+ * Claude Code 风格的交互式 REPL，支持 ANSI 颜色、
+ * 工具执行指示器、SSE 流式输出和编辑工具。
+ * 使用 JLine3 实现行编辑、历史记录和斜杠命令自动补全。
  */
 public class JavaAgentCLI {
     private static final DateTimeFormatter SESSION_TIME_FORMAT = DateTimeFormatter.ofPattern("MM-dd HH:mm");
@@ -68,8 +68,8 @@ public class JavaAgentCLI {
     private final AtomicBoolean awaitingApproval = new AtomicBoolean(false);
 
     public static void main(String[] args) throws Exception {
-        // Suppress JLine warnings before any JLine class loads.
-        // Configure via LogManager so the level is set before the Logger is created.
+        // 在 JLine 类加载前抑制警告。
+        // 通过 LogManager 配置，确保在 Logger 创建前设置日志级别。
         System.setProperty("java.util.logging.ConsoleHandler.level", "SEVERE");
         java.util.logging.Logger jlineLogger = java.util.logging.Logger.getLogger("org.jline");
         jlineLogger.setLevel(java.util.logging.Level.SEVERE);
@@ -163,7 +163,7 @@ public class JavaAgentCLI {
 
         LineReader reader = builder.build();
 
-        // When user types '/', show the completion list below without auto-inserting
+        // 用户输入 '/' 时，在下方显示补全列表但不自动插入
         Widget slashWidget = () -> {
             reader.getBuffer().write('/');
             String buf = reader.getBuffer().toString();
@@ -178,7 +178,7 @@ public class JavaAgentCLI {
 
         PrintWriter out = terminal.writer();
 
-        // Graceful shutdown: save session on Ctrl+C or SIGTERM
+        // 优雅关闭: Ctrl+C 或 SIGTERM 时保存会话
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             try {
                 if (conversationManager != null && config != null && config.autoSave()) {
@@ -231,7 +231,7 @@ public class JavaAgentCLI {
                 if (handleCommand(input, out, reader)) continue;
             }
 
-            // Start braille spinner
+            // 启动盲文旋转动画
             Spinner spinner = new Spinner(out, awaitingApproval);
             spinner.start();
 
@@ -263,7 +263,7 @@ public class JavaAgentCLI {
             out.println();
             out.flush();
 
-            // Auto-compact when token usage exceeds threshold
+            // token 使用超过阈值时自动压缩
             double usagePercent = agent.contextUsage().usagePercent();
             if (usagePercent >= config.compactThreshold()) {
                 out.println(yellow("  ⚠ 上下文已达 " + String.format("%.0f", usagePercent * 100) + "%，自动压缩中"));
@@ -331,7 +331,7 @@ public class JavaAgentCLI {
             }
             case "/save" -> {
                 conversationManager.saveCurrentSession(argument.isBlank() ? null : argument);
-                out.println(green("  Saved: ") + dim(conversationManager.sessionStats()));
+                out.println(green("  已保存: ") + dim(conversationManager.sessionStats()));
             }
             case "/load" -> {
                 boolean loaded = argument.isBlank()
@@ -482,13 +482,13 @@ public class JavaAgentCLI {
     private ApprovalDecision promptApproval(LineReader reader, ToolCall toolCall) {
         PrintWriter out = terminal.writer();
 
-        // Show tool summary above the prompt
+        // 在提示上方显示工具摘要
         String toolSummary = summarizeToolForApproval(toolCall);
         out.println();
         out.println(bold(yellow("  允许执行?")) + dim(" [Y/n]"));
         out.println(dim("    ") + cyan(toolCall.name()) + dim(" → ") + toolSummary);
 
-        // For edit tool, show diff preview with pipe indentation
+        // 对编辑工具，显示带管道缩进的 diff 预览
         if ("edit".equals(toolCall.name())) {
             printEditPreview(toolCall, out);
         }
@@ -516,11 +516,11 @@ public class JavaAgentCLI {
 
     private String summarizeToolForApproval(ToolCall toolCall) {
         Map<String, Object> input = toolCall.input();
-        // Show the most relevant argument
+        // 显示最相关的参数
         if (input.containsKey("path")) return filePath(input.get("path").toString());
         if (input.containsKey("command")) return filePath(input.get("command").toString());
         if (input.containsKey("pattern")) return filePath(input.get("pattern").toString());
-        // Fallback: show first key=value
+        // 回退: 显示第一个 key=value
         for (var entry : input.entrySet()) {
             if (entry.getValue() != null) {
                 return dim(entry.getKey() + "=") + truncate(entry.getValue().toString(), 50);
@@ -529,7 +529,7 @@ public class JavaAgentCLI {
         return dim("...");
     }
 
-    /** Show a colored diff preview for edit tool approval */
+    /** 为编辑工具审批显示彩色 diff 预览 */
     private void printEditPreview(ToolCall toolCall, PrintWriter out) {
         Object oldObj = toolCall.input().get("old_string");
         Object newObj = toolCall.input().get("new_string");
@@ -538,12 +538,12 @@ public class JavaAgentCLI {
         String[] oldLines = splitLines(oldObj.toString());
         String[] newLines = splitLines(newObj.toString());
 
-        out.println(dim("    ") + dim("preview:"));
+        out.println(dim("    ") + dim("预览:"));
         int maxPreview = 6;
         int shown = 0;
         for (String line : oldLines) {
             if (shown++ >= maxPreview) {
-                out.println(dim("    │ ") + dim("... (-" + (oldLines.length - maxPreview) + " more lines)"));
+                out.println(dim("    │ ") + dim("... (-" + (oldLines.length - maxPreview) + " 行)"));
                 break;
             }
             out.println(dim("    │ ") + diffRemove(truncate(line, 68)));
@@ -551,7 +551,7 @@ public class JavaAgentCLI {
         shown = 0;
         for (String line : newLines) {
             if (shown++ >= maxPreview) {
-                out.println(dim("    │ ") + dim("... (+" + (newLines.length - maxPreview) + " more lines)"));
+                out.println(dim("    │ ") + dim("... (+" + (newLines.length - maxPreview) + " 行)"));
                 break;
             }
             out.println(dim("    │ ") + diffAdd(truncate(line, 68)));
@@ -559,8 +559,8 @@ public class JavaAgentCLI {
     }
 
     /**
-     * Show a bordered command menu (Claude Code style).
-     * Renders a box with matching commands and descriptions.
+     * 显示带边框的命令菜单（Claude Code 风格）。
+     * 渲染包含匹配命令和描述的方框。
      */
     private void showCommandMenu(PrintWriter out, SlashCommandCompleter completer, String typed) {
         String filter = typed.trim().toLowerCase();
@@ -570,7 +570,7 @@ public class JavaAgentCLI {
 
         if (commands.isEmpty()) return;
 
-        // Find the longest command name for alignment
+        // 找出最长命令名以对齐
         int maxCmdLen = commands.stream()
                 .mapToInt(cmd -> cmd.name().length())
                 .max().orElse(10);
@@ -612,7 +612,7 @@ public class JavaAgentCLI {
             String id = isCurrent ? brightCyan(shortId(session.id())) : cyan(shortId(session.id()));
             String title = isCurrent ? bold(session.title()) : session.title();
             String time = dim(SESSION_TIME_FORMAT.format(session.lastUpdated()));
-            String msgs = dim(session.messageCount() + " msgs");
+            String msgs = dim(session.messageCount() + " 条消息");
 
             out.println(marker + id + "  " + title + "  " + time + "  " + msgs);
         }
@@ -642,7 +642,7 @@ public class JavaAgentCLI {
         out.println(dim("  ─────────────────────────────────────────────────"));
     }
 
-    /** Re-render the compact status line (called after config changes). */
+    /** 重新渲染紧凑状态行（配置变更后调用）。 */
     private void refreshStatusLine(PrintWriter out) {
         BannerPrinter.printStatusLine(config, toolRegistry, out);
     }
@@ -652,7 +652,7 @@ public class JavaAgentCLI {
         String modelName = config.model();
         ContextDisplay.display(out, usage, modelName);
 
-        // Session info
+        // 会话信息
         out.println("    " + dim("会话: ") + cyan(conversationManager.currentSessionTitle()));
         out.println("    " + dim("ID: ") + dim(shortId(conversationManager.currentSessionId())));
         if (usage.usagePercent() >= 0.8) {
@@ -662,14 +662,14 @@ public class JavaAgentCLI {
 
     private static final String[] EFFORT_LEVELS = {"low", "high", "xhigh", "max", "ultra"};
     private static final String[] EFFORT_DESC = {"简短直接，跳过解释", "逐步推理，详细解释", "深度分析，多角度探索", "最大深度，考虑所有边界", "极限推理，穷举一切可能"};
-    // Bar layout: "Speed ════════════════════════════════════════ Intelligence"
+    // 进度条布局: "Speed ════════════════════════════════════════ Intelligence"
     //              ^4    ^15       ^27       ^39       ^51
-    // Labels placed at fixed positions to align under the bar
+    // 标签放置在固定位置以对齐到进度条下方
     private static final int BAR_WIDTH = 57;
     private static final int[] LEVEL_POS = {4, 15, 27, 39, 51};
 
     private void handleEffortCommand(String argument, PrintWriter out) throws IOException {
-        // Direct argument mode: /effort <level>
+        // 直接参数模式: /effort <level>
         if (!argument.isBlank()) {
             String level = argument.toLowerCase();
             if (!Config.isValidEffort(level)) {
@@ -683,7 +683,7 @@ public class JavaAgentCLI {
             return;
         }
 
-        // Interactive selector mode: /effort (no argument)
+        // 交互式选择器模式: /effort（无参数）
         int selected = java.util.Arrays.asList(EFFORT_LEVELS).indexOf(config.effort());
         if (selected < 0) selected = 1; // default to "high"
 
@@ -691,7 +691,7 @@ public class JavaAgentCLI {
         printEffortBar(out, selected);
         out.flush();
 
-        // Enter raw mode for arrow key navigation
+        // 进入原始模式以支持方向键导航
         org.jline.terminal.Attributes savedAttrs = terminal.enterRawMode();
         try {
             java.io.Reader reader = terminal.reader();
@@ -699,24 +699,24 @@ public class JavaAgentCLI {
                 int ch = reader.read();
                 if (ch == -1) break;
 
-                if (ch == 27) { // ESC sequence
+                if (ch == 27) { // ESC 序列
                     int next = reader.read();
                     if (next == -1) break;
                     if (next == '[') {
                         int arrow = reader.read();
-                        if (arrow == 'D') { // Left
+                        if (arrow == 'D') { // 左
                             selected = (selected - 1 + EFFORT_LEVELS.length) % EFFORT_LEVELS.length;
-                        } else if (arrow == 'C') { // Right
+                        } else if (arrow == 'C') { // 右
                             selected = (selected + 1) % EFFORT_LEVELS.length;
                         }
                     } else {
-                        break; // Standalone ESC — cancel
+                        break; // 单独 ESC —— 取消
                     }
                 } else if (ch == 'h' || ch == 'H') { // vim left
                     selected = (selected - 1 + EFFORT_LEVELS.length) % EFFORT_LEVELS.length;
                 } else if (ch == 'l' || ch == 'L') { // vim right
                     selected = (selected + 1) % EFFORT_LEVELS.length;
-                } else if (ch == '\n' || ch == '\r') { // Enter — confirm
+                } else if (ch == '\n' || ch == '\r') { // Enter —— 确认
                     String level = EFFORT_LEVELS[selected];
                     config.setEffort(level);
                     clearBarLines(out, 5);
@@ -743,7 +743,7 @@ public class JavaAgentCLI {
                     return;
                 }
 
-                // Re-render bar
+                // 重新渲染进度条
                 clearBarLines(out, 5);
                 printEffortBar(out, selected);
                 out.flush();
@@ -753,15 +753,15 @@ public class JavaAgentCLI {
         }
     }
 
-    /** Render the horizontal effort bar with marker. */
+    /** 渲染带标记的水平推理深度条,超级酷😄。 */
     private void printEffortBar(PrintWriter out, int selected) {
-        // Line 1: "Speed" left, "Intelligence" right
+        // 第 1 行: 左侧 "Speed"，右侧 "Intelligence"
         String header = "  " + dim("Speed")
                 + " ".repeat(Math.max(0, BAR_WIDTH - 5 - 11))
                 + dim("Intelligence");
         out.println(header);
 
-        // Line 2: ════════════════════════════════════════▲══
+        // 第 2 行: ════════════════════════════════════════▲══
         int markerPos = LEVEL_POS[selected];
         StringBuilder bar = new StringBuilder("  ");
         for (int i = 0; i < BAR_WIDTH; i++) {
@@ -773,7 +773,7 @@ public class JavaAgentCLI {
         }
         out.println(bar.toString());
 
-        // Line 3: level labels aligned to positions (CJK-aware)
+        // 第 3 行: 级别标签对齐到位置（支持 CJK 宽字符）
         StringBuilder labels = new StringBuilder("  ");
         int col = 2;
         for (int i = 0; i < EFFORT_LEVELS.length; i++) {
@@ -790,7 +790,7 @@ public class JavaAgentCLI {
         }
         out.println(labels.toString());
 
-        // Line 4: selected level description
+        // 第 4 行: 选中级别的描述
         String desc = EFFORT_DESC[selected];
         String levelColor = switch (EFFORT_LEVELS[selected]) {
             case "low" -> dim("low");
@@ -802,11 +802,11 @@ public class JavaAgentCLI {
         };
         out.println("  " + bold(levelColor) + dim(" — " + desc));
 
-        // Line 5: hint
+        // 第 5 行: 提示
         out.println("  " + dim("← → 选择  1-5 快选  Enter 确认  Esc 取消"));
     }
 
-    /** Get colored effort name (without bold). */
+    /** 获取彩色推理深度名称（不含粗体）。 */
     private String formatEffortColor(String level, boolean active) {
         return switch (level) {
             case "low" -> dim("low");
@@ -818,19 +818,19 @@ public class JavaAgentCLI {
         };
     }
 
-    /** Print neon confirmation animation for ultra selection. */
+    /** 打印 ultra 选择的霓虹确认动画。 */
     private void printNeonConfirm(PrintWriter out) {
-        String label = "⚡ ULTRA MODE ⚡";
-        for (int frame = 0; frame < 4; frame++) {
+        String label = "⚡⚡⚡ ULTRA 模式 ⚡⚡⚡";
+        for (int frame = 0; frame < 40; frame++) {
             out.print("\r  思考强度已设为: " + neonGlow(label, frame));
             out.flush();
-            try { Thread.sleep(120); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
+            try { Thread.sleep(80); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
         }
-        out.println("\r  思考强度已设为: " + neon(label, 0) + dim("  — 极限推理，穷举一切可能"));
+        out.println("\r  思考强度已设为: " + neon(label, 0) + dim("  — 极限推理，穷举一切可能!"));
         out.flush();
     }
 
-    /** Clear N lines above cursor for bar re-rendering. */
+    /** 清除光标上方 N 行以重新渲染进度条。 */
     private void clearBarLines(PrintWriter out, int lines) {
         for (int i = 0; i < lines; i++) {
             out.print("\033[1A\033[2K");
@@ -838,7 +838,7 @@ public class JavaAgentCLI {
         out.flush();
     }
 
-    /** Print effort-set confirmation for non-ultra levels. */
+    /** 打印非 ultra 级别的推理深度设置确认。 */
     private void printEffortSet(PrintWriter out, String level) {
         String display = switch (level) {
             case "low" -> dim("low") + dim(" — 简短直接");
@@ -925,14 +925,14 @@ public class JavaAgentCLI {
     }
 
     private String shortId(String sessionId) {
-        if (sessionId == null || sessionId.isBlank()) return "n/a";
+        if (sessionId == null || sessionId.isBlank()) return "无";
         return sessionId.length() <= 8 ? sessionId : sessionId.substring(0, 8);
     }
 
     // ─────────────────────── 内部类 ───────────────────────
 
     /**
-     * Braille spinner — animated "⠋ Thinking..." indicator.
+     * 盲文旋转动画 —— 动画 "⠋ 思考中..." 指示器。
      */
     private static final class Spinner {
         private static final String[] FRAMES = {"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"};
@@ -979,7 +979,7 @@ public class JavaAgentCLI {
     }
 
     /**
-     * Streaming handler — buffers chunks for Markdown rendering.
+     * 流式处理器 —— 缓冲数据块以进行 Markdown 渲染。
      */
     private static final class ConsoleTextStreamHandler implements TextStreamHandler {
         private final StringBuilder buffer = new StringBuilder();
@@ -995,11 +995,11 @@ public class JavaAgentCLI {
     }
 
     /**
-     * Tool display — bordered blocks with │ pipe indentation.
+     * 工具显示 —— 带 │ 管道缩进的边框块。
      *
      * ┌ read_file ─────────────────────────
      * │ src/main/java/Foo.java
-     * │ ✓ done
+     * │ ✓ 完成
      * │   1 │ package com.example;
      * │   2 │ public class Foo {
      * └─────────────────────────────────────
@@ -1028,7 +1028,7 @@ public class JavaAgentCLI {
 
         @Override
         public void onToolEnd(String toolName, boolean success, String resultSummary, String fullContent) {
-            // Clear "Running tool..." line
+            // 清除"正在运行工具..."行
             out.print("\r" + " ".repeat(50) + "\r");
 
             String icon = success ? green("✓") : red("✗");

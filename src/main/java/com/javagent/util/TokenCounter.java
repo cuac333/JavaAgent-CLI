@@ -6,10 +6,10 @@ import com.knuddels.jtokkit.api.EncodingRegistry;
 import com.knuddels.jtokkit.api.EncodingType;
 
 /**
- * Token counting utility using jtokkit (tiktoken Java port).
+ * 基于 jtokkit（tiktoken 的 Java 移植版）的 Token 计数工具。
  *
- * Uses cl100k_base encoding which is compatible with GPT-4 and Claude models.
- * Provides accurate token counts for strings.
+ * 使用 cl100k_base 编码，兼容 GPT-4 和 Claude 模型。
+ * 提供精确的字符串 token 计数。
  */
 public final class TokenCounter {
 
@@ -20,7 +20,7 @@ public final class TokenCounter {
     }
 
     /**
-     * Count tokens in a string.
+     * 计算字符串的 token 数。
      */
     public static int countTokens(String text) {
         if (text == null || text.isEmpty()) return 0;
@@ -28,7 +28,7 @@ public final class TokenCounter {
     }
 
     /**
-     * Format a token count as a human-readable string (e.g., "12.5k").
+     * 将 token 数格式化为易读字符串（如 "12.5k"）。
      */
     public static String formatTokens(int tokens) {
         if (tokens >= 1_000_000) {

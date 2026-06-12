@@ -50,7 +50,7 @@ class EditToolTest {
         ));
 
         assertTrue(result.error());
-        assertTrue(result.content().contains("not found"));
+        assertTrue(result.content().contains("未精确找到"));
     }
 
     @Test
@@ -65,7 +65,7 @@ class EditToolTest {
         ));
 
         assertTrue(result.error());
-        assertTrue(result.content().contains("2 times"));
+        assertTrue(result.content().contains("2 次"));
     }
 
     @Test
@@ -93,7 +93,7 @@ class EditToolTest {
         ));
 
         assertTrue(result.error());
-        assertTrue(result.content().contains("not found"));
+        assertTrue(result.content().contains("未找到"));
     }
 
     @Test
@@ -122,7 +122,7 @@ class EditToolTest {
         ));
 
         assertTrue(result.error());
-        assertTrue(result.content().contains("identical"));
+        assertTrue(result.content().contains("相同"));
     }
 
     @Test
@@ -147,7 +147,7 @@ class EditToolTest {
         ));
 
         assertTrue(result.error());
-        assertTrue(result.content().contains("not found"));
+        assertTrue(result.content().contains("未精确找到"));
         assertTrue(result.content().contains(">>>"));
         assertTrue(result.content().contains("public void method()"));
     }
@@ -164,7 +164,7 @@ class EditToolTest {
         ));
 
         assertTrue(result.error());
-        assertTrue(result.content().contains("not found"));
+        assertTrue(result.content().contains("未精确找到"));
         assertTrue(result.content().contains("class A"));
     }
 }

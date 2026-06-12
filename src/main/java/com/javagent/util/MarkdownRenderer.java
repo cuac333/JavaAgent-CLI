@@ -7,10 +7,10 @@ import java.util.regex.Pattern;
 import static com.javagent.util.Terminal.*;
 
 /**
- * Lightweight Markdown-to-ANSI renderer for terminal output.
+ * 轻量级 Markdown 转 ANSI 渲染器，用于终端输出。
  *
- * Handles: headers, code blocks with syntax highlighting,
- * inline code, bold, bullets, and plain text wrapping.
+ * 支持: 标题、带语法高亮的代码块、
+ * 行内代码、粗体、列表和纯文本自动换行。
  */
 public final class MarkdownRenderer {
 
@@ -43,7 +43,7 @@ public final class MarkdownRenderer {
     }
 
     /**
-     * Render Markdown text to ANSI-styled string.
+     * 将 Markdown 文本渲染为 ANSI 样式字符串。
      */
     public static String render(String markdown) {
         if (markdown == null || markdown.isEmpty()) return "";
@@ -60,7 +60,7 @@ public final class MarkdownRenderer {
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i];
 
-            // Code block fences
+            // 代码块围栏
             if (line.stripLeading().startsWith("```")) {
                 if (!inCodeBlock) {
                     inCodeBlock = true;
@@ -68,7 +68,7 @@ public final class MarkdownRenderer {
                     codeLineNum = 0;
                     codeBuffer.setLength(0);
                 } else {
-                    // End code block — render buffered code
+                    // 结束代码块 —— 渲染缓冲的代码
                     inCodeBlock = false;
                     renderCodeBlock(out, codeBuffer.toString(), codeLang, width);
                     codeLang = "";
@@ -82,7 +82,7 @@ public final class MarkdownRenderer {
                 continue;
             }
 
-            // Headers
+            // 标题
             Matcher headerMatcher = HEADER_PATTERN.matcher(line);
             if (headerMatcher.matches()) {
                 String text = headerMatcher.group(2);
@@ -90,7 +90,7 @@ public final class MarkdownRenderer {
                 continue;
             }
 
-            // Bullet / numbered lists
+            // 列表项 / 有序列表
             Matcher bulletMatcher = BULLET_PATTERN.matcher(line);
             if (bulletMatcher.matches()) {
                 String indent = bulletMatcher.group(1);
@@ -99,19 +99,19 @@ public final class MarkdownRenderer {
                 continue;
             }
 
-            // Blank line
+            // 空行
             if (line.isBlank()) {
                 out.append("\n");
                 continue;
             }
 
-            // Regular text — wrap and render inline
+            // 普通文本 —— 换行并渲染行内格式
             String rendered = renderInline(line);
             wrapInto(out, rendered, width);
             out.append("\n");
         }
 
-        // Unclosed code block
+        // 未关闭的代码块
         if (inCodeBlock && codeBuffer.length() > 0) {
             renderCodeBlock(out, codeBuffer.toString(), codeLang, width);
         }
@@ -120,15 +120,15 @@ public final class MarkdownRenderer {
     }
 
     /**
-     * Print rendered Markdown directly to stdout.
+     * 将渲染后的 Markdown 直接打印到标准输出。
      */
     public static void printRendered(String markdown) {
         System.out.print(render(markdown));
     }
 
-    /** Render inline formatting: bold and inline code. */
+    /** 渲染行内格式: 粗体和行内代码。 */
     private static String renderInline(String text) {
-        // Inline code first
+        // 先处理行内代码
         Matcher m = INLINE_CODE_PATTERN.matcher(text);
         StringBuilder sb = new StringBuilder();
         int last = 0;
@@ -140,7 +140,7 @@ public final class MarkdownRenderer {
         sb.append(text.substring(last));
         text = sb.toString();
 
-        // Bold
+        // 粗体
         m = BOLD_PATTERN.matcher(text);
         sb = new StringBuilder();
         last = 0;
@@ -153,7 +153,7 @@ public final class MarkdownRenderer {
         return sb.toString();
     }
 
-    /** Render a code block with syntax highlighting and line numbers. */
+    /** 渲染带语法高亮和行号的代码块。 */
     private static void renderCodeBlock(StringBuilder out, String code, String lang, int width) {
         String[] codeLines = splitLines(code);
         boolean isJavaLike = lang.isEmpty() || lang.equalsIgnoreCase("java")
@@ -171,9 +171,9 @@ public final class MarkdownRenderer {
         }
     }
 
-    /** Basic syntax highlighting for code lines. */
+    /** 代码行的基础语法高亮。 */
     private static String highlightCode(String line) {
-        // Handle comments first
+        // 先处理注释
         int commentIdx = indexOfUnquoted(line, "//");
         String codePart = commentIdx >= 0 ? line.substring(0, commentIdx) : line;
         String commentPart = commentIdx >= 0 ? line.substring(commentIdx) : "";
@@ -183,7 +183,7 @@ public final class MarkdownRenderer {
         while (i < codePart.length()) {
             char c = codePart.charAt(i);
 
-            // String literals
+            // 字符串字面量
             if (c == '"' || c == '\'') {
                 char quote = c;
                 int end = findStringEnd(codePart, i + 1, quote);
@@ -192,7 +192,7 @@ public final class MarkdownRenderer {
                 continue;
             }
 
-            // Identifiers / keywords
+            // 标识符 / 关键字
             if (Character.isJavaIdentifierStart(c)) {
                 int end = i + 1;
                 while (end < codePart.length() && Character.isJavaIdentifierPart(codePart.charAt(end))) {
@@ -237,7 +237,7 @@ public final class MarkdownRenderer {
         return s.length() - 1;
     }
 
-    /** Word-wrap styled text into a StringBuilder. */
+    /** 将带样式的文本自动换行到 StringBuilder。 */
     private static void wrapInto(StringBuilder out, String styled, int maxWidth) {
         String plain = stripAnsi(styled);
         if (plain.length() <= maxWidth) {
@@ -245,7 +245,7 @@ public final class MarkdownRenderer {
             return;
         }
 
-        // Simple word wrap preserving ANSI codes
+        // 简单换行，保留 ANSI 码
         String[] words = styled.split(" ");
         int lineLen = 0;
         for (int i = 0; i < words.length; i++) {

@@ -11,7 +11,7 @@ public final class Sanitizer {
     private Sanitizer() {
     }
 
-    // API key patterns: sk-xxx, Bearer xxx, agent.api_key=xxx, etc.
+    // API Key 模式: sk-xxx、Bearer xxx、agent.api_key=xxx 等
     private static final Pattern API_KEY_PATTERN = Pattern.compile(
             "(?i)(sk-[a-zA-Z0-9_-]{20,}|"
             + "api[_-]?key[=:\\s]+[a-zA-Z0-9_-]{16,}|"
@@ -21,7 +21,7 @@ public final class Sanitizer {
             Pattern.CASE_INSENSITIVE
     );
 
-    private static final String MASK = "***REDACTED***";
+    private static final String MASK = "***已脱敏***";
 
     /**
      * 脱敏文本中的敏感信息

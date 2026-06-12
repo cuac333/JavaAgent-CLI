@@ -39,6 +39,6 @@ class DeleteFileToolTest {
         ToolExecutionResult result = tool.execute(Map.of("path", tempDir.toString()));
 
         assertTrue(result.error());
-        assertTrue(result.content().contains("regular files"));
+        assertTrue(result.content().contains("普通文件"));
     }
 }

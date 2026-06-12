@@ -134,7 +134,7 @@ public class Config {
             Files.createDirectories(parent);
         }
         try (OutputStream outputStream = Files.newOutputStream(configPath)) {
-            properties.store(outputStream, "JavaAgent CLI configuration");
+            properties.store(outputStream, "JavaAgent CLI 配置");
         }
     }
 
@@ -280,7 +280,7 @@ public class Config {
     public void setEffort(String effort) throws IOException {
         String level = effort.toLowerCase();
         if (!isValidEffort(level)) {
-            throw new IllegalArgumentException("effort must be low|high|xhigh|max|ultra");
+            throw new IllegalArgumentException("effort 必须是 low|high|xhigh|max|ultra");
         }
         properties.setProperty(KEY_EFFORT, level);
         save();

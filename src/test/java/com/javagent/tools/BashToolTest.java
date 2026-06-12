@@ -16,7 +16,7 @@ class BashToolTest {
     void rejectsEmptyCommand() {
         ToolExecutionResult result = tool.execute(Map.of("command", ""));
         assertTrue(result.error());
-        assertTrue(result.content().contains("non-empty"));
+        assertTrue(result.content().contains("非空"));
     }
 
     @Test
@@ -39,7 +39,7 @@ class BashToolTest {
     void detectsRmRfRoot() {
         ToolExecutionResult result = tool.execute(Map.of("command", "rm -rf /"));
         assertTrue(result.error());
-        assertTrue(result.content().contains("safety policy"));
+        assertTrue(result.content().contains("安全策略"));
     }
 
     @Test
@@ -109,7 +109,7 @@ class BashToolTest {
         // ls may fail if not on PATH, but it should NOT be rejected by safety policy
         // Only check that it's not a safety rejection
         if (r1.error()) {
-            assertFalse(r1.content().contains("safety policy"), "ls should not be blocked by safety policy");
+            assertFalse(r1.content().contains("安全策略"), "ls 不应被安全策略阻止");
         }
     }
 

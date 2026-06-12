@@ -41,6 +41,6 @@ class WriteFileToolTest {
         ToolExecutionResult result = tool.execute(Map.of("path", tempDir.toString(), "content", "bad"));
 
         assertTrue(result.error());
-        assertTrue(result.content().contains("directory"));
+        assertTrue(result.content().contains("目录"));
     }
 }

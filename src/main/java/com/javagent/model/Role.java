@@ -28,13 +28,13 @@ public enum Role {
         this.apiValue = apiValue;
     }
 
-    /** Serialize as lowercase API value ("user" not "USER") */
+    /** 序列化为小写 API 值（"user" 而非 "USER"） */
     @JsonValue
     public String apiValue() {
         return apiValue;
     }
 
-    /** Deserialize from either "user" or "USER" */
+    /** 从 "user" 或 "USER" 反序列化 */
     @JsonCreator
     public static Role fromValue(String value) {
         for (Role r : values()) {
@@ -42,6 +42,6 @@ public enum Role {
                 return r;
             }
         }
-        throw new IllegalArgumentException("Unknown role: " + value);
+        throw new IllegalArgumentException("未知角色: " + value);
     }
 }

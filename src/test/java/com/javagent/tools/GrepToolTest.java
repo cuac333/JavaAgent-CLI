@@ -40,7 +40,7 @@ class GrepToolTest {
         ToolExecutionResult result = tool.execute(Map.of("pattern", "[abc", "path", tempDir.toString()));
 
         assertTrue(result.error());
-        assertTrue(result.content().contains("Invalid regex pattern"));
+        assertTrue(result.content().contains("无效的正则表达式"));
     }
 
     @Test
@@ -48,7 +48,7 @@ class GrepToolTest {
         ToolExecutionResult result = tool.execute(Map.of("pattern", "agent", "path", tempDir.resolve("missing").toString()));
 
         assertTrue(result.error());
-        assertTrue(result.content().contains("Path not found"));
+        assertTrue(result.content().contains("路径未找到"));
     }
 
     @Test

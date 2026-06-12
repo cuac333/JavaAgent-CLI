@@ -32,11 +32,11 @@ public class GrepTool implements Tool {
 
     private static final ToolDefinition DEFINITION = new ToolDefinition(
             "grep",
-            "Search text files recursively with a regex pattern.",
+            "使用正则表达式递归搜索文本文件。",
             Map.of(
-                    "pattern", "Regex pattern to search for.",
-                    "path", "File or directory path to search. Defaults to current directory.",
-                    "caseSensitive", "Whether the regex match should be case-sensitive."
+                    "pattern", "要搜索的正则表达式模式。",
+                    "path", "要搜索的文件或目录路径，默认为当前目录。",
+                    "caseSensitive", "正则匹配是否区分大小写。"
             ),
             Map.of(
                     "pattern", "string",
@@ -59,7 +59,7 @@ public class GrepTool implements Tool {
     public ToolExecutionResult execute(Map<String, Object> input) {
         String rawPattern = FileToolSupport.stringValue(input.get("pattern"));
         if (rawPattern.isBlank()) {
-            return ToolExecutionResult.error("grep requires a non-empty pattern.");
+            return ToolExecutionResult.error("grep 需要一个非空的搜索模式。");
         }
 
         String rawPath = FileToolSupport.stringValue(input.get("path"));
@@ -71,7 +71,7 @@ public class GrepTool implements Tool {
         try {
             path = FileToolSupport.normalizePath(rawPath);
         } catch (InvalidPathException e) {
-            return ToolExecutionResult.error("Invalid path: " + rawPath);
+            return ToolExecutionResult.error("无效的路径：" + rawPath);
         }
 
         String wsError = FileToolSupport.checkInsideWorkspace(path);
@@ -80,7 +80,7 @@ public class GrepTool implements Tool {
         }
 
         if (!Files.exists(path)) {
-            return ToolExecutionResult.error("Path not found: " + path);
+            return ToolExecutionResult.error("路径未找到：" + path);
         }
 
         boolean caseSensitive = FileToolSupport.booleanValue(input.get("caseSensitive"), false);
@@ -88,12 +88,12 @@ public class GrepTool implements Tool {
         try {
             pattern = Pattern.compile(rawPattern, caseSensitive ? 0 : Pattern.CASE_INSENSITIVE);
         } catch (PatternSyntaxException e) {
-            return ToolExecutionResult.error("Invalid regex pattern: " + e.getMessage());
+            return ToolExecutionResult.error("无效的正则表达式：" + e.getMessage());
         }
 
         StringBuilder builder = new StringBuilder();
-        builder.append("Pattern: ").append(rawPattern).append(System.lineSeparator());
-        builder.append("Path: ").append(path.toAbsolutePath()).append(System.lineSeparator());
+        builder.append("模式：").append(rawPattern).append(System.lineSeparator());
+        builder.append("路径：").append(path.toAbsolutePath()).append(System.lineSeparator());
         builder.append("-----").append(System.lineSeparator());
 
         AtomicInteger filesScanned = new AtomicInteger();
@@ -118,14 +118,14 @@ public class GrepTool implements Tool {
                 }
             }
         } catch (IOException e) {
-            return ToolExecutionResult.error("Search failed: " + e.getMessage());
+            return ToolExecutionResult.error("搜索失败：" + e.getMessage());
         }
 
         builder.append("-----").append(System.lineSeparator())
-                .append("files_scanned=").append(filesScanned.get())
-                .append(", matches=").append(matchesFound.get());
+                .append("已扫描文件=").append(filesScanned.get())
+                .append("，匹配数=").append(matchesFound.get());
         if (matchesFound.get() >= MAX_MATCHES) {
-            builder.append(" (stopped at max matches)");
+            builder.append("（已达最大匹配数）");
         }
         return ToolExecutionResult.success(builder.toString().trim());
     }

@@ -43,6 +43,6 @@ class ListDirectoryToolTest {
         ToolExecutionResult result = tool.execute(Map.of("path", file.toString()));
 
         assertTrue(result.error());
-        assertTrue(result.content().contains("not a directory"));
+        assertTrue(result.content().contains("不是目录"));
     }
 }

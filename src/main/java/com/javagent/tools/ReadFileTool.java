@@ -28,11 +28,11 @@ public class ReadFileTool implements Tool {
 
     private static final ToolDefinition DEFINITION = new ToolDefinition(
             "read_file",
-            "Read a text file with optional offset and line limit.",
+            "读取文本文件，支持偏移量和行数限制。",
             Map.of(
-                    "path", "The file path to read.",
-                    "offset", "Zero-based starting line offset.",
-                    "limit", "Maximum number of lines to return."
+                    "path", "要读取的文件路径。",
+                    "offset", "从零开始的起始行偏移量。",
+                    "limit", "返回的最大行数。"
             ),
             Map.of(
                     "path", "string",
@@ -55,14 +55,14 @@ public class ReadFileTool implements Tool {
     public ToolExecutionResult execute(Map<String, Object> input) {
         String rawPath = FileToolSupport.stringValue(input.get("path"));
         if (rawPath.isBlank()) {
-            return ToolExecutionResult.error("read_file requires a non-empty path.");
+            return ToolExecutionResult.error("read_file 需要一个非空路径。");
         }
 
         Path path;
         try {
             path = FileToolSupport.normalizePath(rawPath);
         } catch (InvalidPathException e) {
-            return ToolExecutionResult.error("Invalid path: " + rawPath);
+            return ToolExecutionResult.error("无效的路径：" + rawPath);
         }
 
         String wsError = FileToolSupport.checkInsideWorkspace(path);
@@ -71,19 +71,19 @@ public class ReadFileTool implements Tool {
         }
 
         if (!Files.exists(path)) {
-            return ToolExecutionResult.error("File not found: " + path);
+            return ToolExecutionResult.error("文件未找到：" + path);
         }
         if (!Files.isRegularFile(path)) {
-            return ToolExecutionResult.error("Path is not a regular file: " + path);
+            return ToolExecutionResult.error("路径不是普通文件：" + path);
         }
 
         try {
             long size = Files.size(path);
             if (size > MAX_SIZE_BYTES) {
-                return ToolExecutionResult.error("File is too large to read safely (" + size + " bytes).");
+                return ToolExecutionResult.error("文件过大，无法安全读取（" + size + " 字节）。");
             }
             if (FileToolSupport.isBinary(path)) {
-                return ToolExecutionResult.error("Binary files are not supported by read_file.");
+                return ToolExecutionResult.error("read_file 不支持二进制文件。");
             }
 
             List<String> lines = Files.readAllLines(path, StandardCharsets.UTF_8);
@@ -93,19 +93,19 @@ public class ReadFileTool implements Tool {
             int end = Math.min(start + limit, lines.size());
 
             StringBuilder builder = new StringBuilder();
-            builder.append("File: ").append(path.toAbsolutePath()).append(System.lineSeparator());
-            builder.append("Lines: ").append(start + 1).append("-").append(end).append(" of ").append(lines.size()).append(System.lineSeparator());
+            builder.append("文件：").append(path.toAbsolutePath()).append(System.lineSeparator());
+            builder.append("行：").append(start + 1).append("-").append(end).append("，共 ").append(lines.size()).append(" 行").append(System.lineSeparator());
             builder.append("-----").append(System.lineSeparator());
             for (int i = start; i < end; i++) {
                 builder.append(i + 1).append(": ").append(lines.get(i)).append(System.lineSeparator());
             }
             if (end < lines.size()) {
-                builder.append("... (").append(lines.size() - end).append(" more lines omitted)");
+                builder.append("...（省略了 ").append(lines.size() - end).append(" 行）");
             }
 
             return ToolExecutionResult.success(builder.toString().trim());
         } catch (IOException e) {
-            return ToolExecutionResult.error("Failed to read file: " + e.getMessage());
+            return ToolExecutionResult.error("读取文件失败：" + e.getMessage());
         }
     }
 }

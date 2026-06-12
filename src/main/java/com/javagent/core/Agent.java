@@ -19,12 +19,7 @@ import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-/**
- * Agent — the core engine.
- *
- * Implements the ReAct-style agent loop:
- *   User input -> AI thinks -> calls tool -> tool result -> AI thinks again -> ... -> final reply
- */
+//todo 这是智能体的核心
 public class Agent {
     private static final Logger LOG = Logger.getLogger(Agent.class.getName());
     private final Config config;
@@ -34,7 +29,7 @@ public class Agent {
     private final ApprovalManager approvalManager;
     private final ToolStats toolStats = new ToolStats();
 
-    // Pre-computed token count for tool definitions (static, computed once)
+    // 工具定义的预计算 token 数量（静态，只计算一次）
     private final int cachedToolTokens;
 
     public Agent(Config config, ModelClient modelClient, ToolRegistry toolRegistry, ConversationManager conversationManager) {
@@ -43,7 +38,7 @@ public class Agent {
         this.toolRegistry = toolRegistry;
         this.conversationManager = conversationManager;
         this.approvalManager = new ApprovalManager(config);
-        // Pre-compute tool definition tokens (tools are static)
+        // 预计算工具定义的 token 数量（工具是静态的）
         this.cachedToolTokens = TokenCounter.countTokens(buildToolsSection(toolRegistry.definitions()));
     }
 
@@ -60,13 +55,13 @@ public class Agent {
     }
 
     /**
-     * Process one conversation turn — the agent loop.
+     * 处理一个对话轮次 —— Agent 主循环。
      *
-     * @param userInput        user's text input
-     * @param approvalHandler  approval callback for tools that need confirmation
-     * @param streamHandler    streaming text callback (can be null)
-     * @param displayCallback  tool execution display callback (can be null)
-     * @return the agent's final text reply
+     * @param userInput        用户的文本输入
+     * @param approvalHandler  工具审批回调（需要确认时调用）
+     * @param streamHandler    流式文本回调（可为 null）
+     * @param displayCallback  工具执行显示回调（可为 null）
+     * @return Agent 的最终文本回复
      */
     public String processTurn(String userInput, ApprovalHandler approvalHandler,
                                TextStreamHandler streamHandler, ToolDisplayCallback displayCallback) {
@@ -84,8 +79,8 @@ public class Agent {
                     effectiveStreamHandler
             );
 
-            // Retry with fresh context if the API rejects due to missing reasoning_content
-            // (happens when old conversation messages lack thinking model's reasoning data)
+            // 当 API 因缺少 reasoning_content 而拒绝时，用新上下文重试
+            // （旧对话消息缺少思维模型的推理数据时会发生这种情况）
             if (response.isError() && response.errorMessage().contains("reasoning_content")) {
                 List<Message> freshContext = List.of(
                         Message.user(userInput)
@@ -97,14 +92,14 @@ public class Agent {
                         effectiveStreamHandler
                 );
                 if (!response.isError()) {
-                    // Clear old history and start fresh
+                    // 清除旧历史，重新开始
                     conversationManager.startNewSession(null);
                     conversationManager.addUserMessage(userInput);
                 }
             }
 
             if (response.isError()) {
-                String errorText = "Agent error: " + response.errorMessage();
+                String errorText = "Agent 错误: " + response.errorMessage();
                 conversationManager.addAssistantMessage(errorText);
                 autoSaveQuietly();
                 return errorText;
@@ -118,13 +113,13 @@ public class Agent {
 
             conversationManager.addAssistantToolCallMessage(response.content(), response.toolCalls(), response.reasoningContent());
             for (ToolCall toolCall : response.toolCalls()) {
-                // Notify UI about tool execution
+                // 通知 UI 工具开始执行
                 if (displayCallback != null) {
                     displayCallback.onToolStart(toolCall.name(), summarizeToolCall(toolCall));
                 }
 
                 ToolExecutionResult result = executeToolCall(toolCall, approvalHandler);
-                // Track consecutive failures to break infinite loops
+                // 追踪连续失败以打破无限循环
                 if (result.error()) {
                     if (toolCall.name().equals(lastFailedTool)) {
                         consecutiveFailures++;
@@ -133,8 +128,8 @@ public class Agent {
                         consecutiveFailures = 1;
                     }
                     if (consecutiveFailures >= 3) {
-                        String stuckText = "Agent stopped: tool '" + toolCall.name() + "' failed 3 times in a row. "
-                                + "Last error: " + truncateResult(result.content());
+                        String stuckText = "Agent 已停止: 工具 '" + toolCall.name() + "' 连续失败 3 次。"
+                                + "最后一次错误: " + truncateResult(result.content());
                         conversationManager.addToolResultMessage(toolCall.id(), toolCall.name(),
                                 Sanitizer.sanitize(result.content()), true);
                         conversationManager.addAssistantMessage(stuckText);
@@ -145,11 +140,11 @@ public class Agent {
                     consecutiveFailures = 0;
                     lastFailedTool = null;
                 }
-                // Sanitize tool result before storing to prevent API key leakage in session files
+                // 在存储前对工具结果进行脱敏，防止 API Key 泄漏到会话文件中
                 String sanitizedContent = Sanitizer.sanitize(result.content());
                 conversationManager.addToolResultMessage(toolCall.id(), toolCall.name(), sanitizedContent, result.error());
 
-                // Notify UI about tool completion
+                // 通知 UI 工具执行完成
                 if (displayCallback != null) {
                     displayCallback.onToolEnd(toolCall.name(), !result.error(),
                             truncateResult(result.content()), result.content());
@@ -157,7 +152,7 @@ public class Agent {
             }
         }
 
-        String limitText = "Agent stopped after reaching the max tool-call iterations (" + config.maxIterations() + ").";
+        String limitText = "Agent 已停止: 达到最大工具调用次数上限（" + config.maxIterations() + "）。";
         conversationManager.addAssistantMessage(limitText);
         autoSaveQuietly();
         return limitText;
@@ -166,7 +161,7 @@ public class Agent {
     private ToolExecutionResult executeToolCall(ToolCall toolCall, ApprovalHandler approvalHandler) {
         Tool tool = toolRegistry.find(toolCall.name()).orElse(null);
         if (tool == null) {
-            return ToolExecutionResult.error("Tool not found: " + toolCall.name());
+            return ToolExecutionResult.error("工具未找到: " + toolCall.name());
         }
 
         ApprovalOutcome approvalOutcome = approvalManager.authorize(tool, toolCall, approvalHandler);
@@ -186,49 +181,48 @@ public class Agent {
         return buildBaseSystemPrompt() + "\n\n" + buildToolsSection(tools);
     }
 
-    /** Build the base system prompt (identity, rules, effort, custom prompt) — no tool definitions. */
+    /** 构建基础系统提示词（身份、规则、推理深度、自定义提示）—— 不含工具定义。 */
     private String buildBaseSystemPrompt() {
         StringBuilder builder = new StringBuilder();
-        builder.append("You are JavaAgent CLI, a concise coding assistant.\n");
-        builder.append("You are an interactive agent that helps users with software engineering tasks.\n");
-        builder.append("Use tools only when they materially help answer the request.\n");
-        builder.append("Operate inside the workspace by default and avoid destructive actions unless explicitly requested.\n");
-        builder.append("Be concise. Prefer editing existing files over creating new ones.\n");
-        builder.append("When writing comments or Javadoc, use plain text only. Do NOT use HTML tags like <table>, <ol>, <li>, <p>, <h3> etc. in comments.\n");
-        builder.append("When using the edit tool, ensure old_string matches the file content exactly (including whitespace).\n");
-        builder.append("If the user request is vague, ask for clarification instead of making assumptions.\n");
-        builder.append("Strictly distinguish: only answer questions with what/why/how etc. without writing/modifying code;"
-        +" act only when explicit action words like implement/write/fix/modify appear and user requests execution; when in doubt, always answer first, never act unasked.\n");
+        builder.append("你是 JavaAgent CLI，一个简洁的编程助手。\n");
+        builder.append("你是一个交互式智能体，帮助用户完成软件工程任务。\n");
+        builder.append("仅在工具能实质性帮助回答问题时才使用工具。\n");
+        builder.append("默认在工作区内操作，除非用户明确要求，否则避免执行破坏性操作。\n");
+        builder.append("保持简洁。优先编辑已有文件，而非创建新文件。\n");
+        builder.append("编写注释或 Javadoc 时，仅使用纯文本。禁止在注释中使用 HTML 标签，如 <table>、<ol>、<li>、<p>、<h3> 等。\n");
+        builder.append("使用编辑工具时，确保 old_string 与文件内容完全匹配（包括空白字符）。\n");
+        builder.append("如果用户请求不明确，应先询问澄清，而不是自行假设。\n");
+        builder.append("严格区分：仅用'是什么/为什么/怎么做'等问题回答时，不写/不改代码；仅当出现明确的动作词如'实现/写/修复/修改'且用户要求执行时才行动；有疑问时，先回答，不要擅自行动。\n");
 
-        // Effort level — controls reasoning depth
+        // 推理深度级别
         String effort = config.effort();
         switch (effort) {
-            case "low" -> builder.append("Be brief and direct. Skip explanations unless asked. Minimal reasoning.\n");
-            case "high" -> builder.append("Think step-by-step. Provide thorough analysis and detailed explanations.\n");
-            case "xhigh" -> builder.append("Deep reasoning with extended analysis. Explore multiple approaches before responding. Consider edge cases and trade-offs.\n");
-            case "max" -> builder.append("Maximize reasoning depth. Consider all edge cases, alternatives, and implications before responding. Be extremely thorough.\n");
-            case "ultra" -> builder.append("ULTRA MODE: Exhaustive reasoning. Explore every angle, question assumptions, stress-test your own answers. Consider second-order effects, failure modes, and hidden constraints. Be maximally thorough and precise.\n");
+            case "low" -> builder.append("简洁直接。除非被要求，否则跳过解释。最少推理。\n");
+            case "high" -> builder.append("逐步思考。提供透彻的分析和详细的解释。\n");
+            case "xhigh" -> builder.append("深度推理，扩展分析。回答前探索多种方案。考虑边界情况和权衡。\n");
+            case "max" -> builder.append("最大化推理深度。回答前考虑所有边界情况、替代方案和影响。力求极其详尽。\n");
+            case "ultra" -> builder.append("ULTRA 模式: 穷举推理。探索每个角度，质疑假设，压力测试自己的答案。考虑二阶效应、失败模式和隐藏约束。力求最大程度的详尽和精确。\n");
         }
 
         if (!config.customSystemPrompt().isBlank()) {
-            builder.append("\nAdditional instructions:\n");
+            builder.append("\n附加指令:\n");
             builder.append(config.customSystemPrompt()).append("\n");
         }
 
         return builder.toString().trim();
     }
 
-    /** Build the tools section of the system prompt. */
+    /** 构建系统提示词的工具部分。 */
     private String buildToolsSection(List<ToolDefinition> tools) {
         StringBuilder builder = new StringBuilder();
-        builder.append("Available tools:\n");
+        builder.append("可用工具:\n");
         for (ToolDefinition tool : tools) {
             builder.append("- ").append(tool.name());
             if (!tool.aliases().isEmpty()) {
-                builder.append(" (aliases: ").append(String.join(", ", tool.aliases())).append(")");
+                builder.append(" (别名: ").append(String.join(", ", tool.aliases())).append(")");
             }
             builder.append(": ").append(tool.description());
-            builder.append(" | required=").append(tool.requiredParameters());
+            builder.append(" | 必需参数=").append(tool.requiredParameters());
             builder.append("\n");
         }
         return builder.toString().trim();
@@ -265,7 +259,7 @@ public class Agent {
         try {
             conversationManager.saveCurrentSession();
         } catch (IOException e) {
-            LOG.log(Level.FINE, "Auto-save failed", e);
+            LOG.log(Level.FINE, "自动保存失败", e);
         }
     }
 
@@ -337,9 +331,8 @@ public class Agent {
     }
 
     /**
-     * Calculate current context usage breakdown by token count.
-     * Tool definition tokens are pre-computed (static); only the base prompt
-     * and messages are tokenized on each call.
+     * 计算当前上下文的 token 使用分布。
+     * 工具定义的 token 是预计算的（静态）；仅基础提示词和消息在每次调用时计算。
      */
     public ContextUsage contextUsage() {
         int sysTokens = TokenCounter.countTokens(buildBaseSystemPrompt());

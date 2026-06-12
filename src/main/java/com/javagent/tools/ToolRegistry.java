@@ -111,7 +111,7 @@ public class ToolRegistry {
     public String listTools() {
         List<ToolDefinition> definitions = new ArrayList<>(definitions());
         if (definitions.isEmpty()) {
-            return "No tools registered.";
+            return "没有已注册的工具。";
         }
 
         return definitions.stream()
@@ -120,8 +120,8 @@ public class ToolRegistry {
                             ? ""
                             : " [" + String.join(", ", def.aliases()) + "]";
                     String flags = def.requiresApproval()
-                            ? " (approval required)"
-                            : " (auto approved)";
+                            ? "（需要审批）"
+                            : "（自动批准）";
                     return "- " + def.name() + aliases + ": " + def.description() + flags;
                 })
                 .collect(Collectors.joining(System.lineSeparator()));

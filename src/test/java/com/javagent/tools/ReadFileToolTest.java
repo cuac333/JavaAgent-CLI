@@ -40,7 +40,7 @@ class ReadFileToolTest {
         ToolExecutionResult result = tool.execute(Map.of("path", tempDir.resolve("missing.txt").toString()));
 
         assertTrue(result.error());
-        assertTrue(result.content().contains("File not found"));
+        assertTrue(result.content().contains("文件未找到"));
     }
 
     @Test
@@ -48,7 +48,7 @@ class ReadFileToolTest {
         ToolExecutionResult result = tool.execute(Map.of("path", tempDir.toString()));
 
         assertTrue(result.error());
-        assertTrue(result.content().contains("not a regular file"));
+        assertTrue(result.content().contains("不是普通文件"));
     }
 
     @Test
@@ -59,6 +59,6 @@ class ReadFileToolTest {
         ToolExecutionResult result = tool.execute(Map.of("path", file.toString()));
 
         assertTrue(result.error());
-        assertTrue(result.content().contains("too large"));
+        assertTrue(result.content().contains("过大"));
     }
 }
