@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -31,12 +32,13 @@ import java.util.logging.Logger;
  */
 public class OpenAiCompatibleModelClient implements ModelClient {
     private static final Logger LOG = Logger.getLogger(OpenAiCompatibleModelClient.class.getName());
-    private static final int MAX_RETRIES = 3;
+    private static final int MAX_RETRIES = 5;
     private static final long BASE_DELAY_MS = 1000;
     private final Config config;
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final RateLimiter rateLimiter;
+    private volatile AtomicBoolean cancelFlag;
 
     public OpenAiCompatibleModelClient(Config config) {
         this.config = config;
@@ -44,6 +46,11 @@ public class OpenAiCompatibleModelClient implements ModelClient {
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(30))
                 .build();
+    }
+
+    @Override
+    public void setCancelFlag(AtomicBoolean cancelFlag) {
+        this.cancelFlag = cancelFlag;
     }
 
     @Override
@@ -96,12 +103,18 @@ public class OpenAiCompatibleModelClient implements ModelClient {
             String body = buildRequestBody(systemPrompt, messages, tools, true);
             HttpRequest request = buildRequest(body);
 
-            // 通过 BodyHandlers.ofLines() 使用 SSE 流式
+            // 通过 BodyHandlers.ofLines() 使用 SSE 流式（带 429/5xx 指数退避重试）
             StringBuilder contentBuilder = new StringBuilder();
             StringBuilder reasoningBuilder = new StringBuilder();
             List<ToolCallDelta> toolCallDeltas = new ArrayList<>();
 
-            HttpResponse<java.util.stream.Stream<String>> response = httpClient.send(request, HttpResponse.BodyHandlers.ofLines());
+            HttpResponse<java.util.stream.Stream<String>> response;
+            try {
+                response = sendStreamWithRetry(request);
+            } catch (IOException | InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return ModelResponse.error("流式请求失败: " + e.getMessage());
+            }
             if (response.statusCode() >= 400) {
                 // 关闭流
                 response.body().close();
@@ -112,66 +125,74 @@ public class OpenAiCompatibleModelClient implements ModelClient {
                 return ModelResponse.error("HTTP 错误 " + response.statusCode());
             }
 
-            response.body().forEach(line -> {
-                if (line.isEmpty() || line.startsWith(":")) return; // 跳过注释/保活消息
-                if (!line.startsWith("data: ")) return;
+            // 通知 UI 流开始（暂停 spinner，防止覆盖流式文本）
+            streamHandler.onStreamStart();
+            try {
+                response.body().forEach(line -> {
+                    if (line.isEmpty() || line.startsWith(":")) return; // 跳过注释/保活消息
+                    if (!line.startsWith("data: ")) return;
 
-                String data = line.substring(6).trim();
-                if ("[DONE]".equals(data)) return;
+                    String data = line.substring(6).trim();
+                    if ("[DONE]".equals(data)) return;
 
-                try {
-                    JsonNode chunk = objectMapper.readTree(data);
-                    JsonNode choices = chunk.path("choices");
-                    if (choices.isEmpty()) return;
+                    try {
+                        JsonNode chunk = objectMapper.readTree(data);
+                        JsonNode choices = chunk.path("choices");
+                        if (choices.isEmpty()) return;
 
-                    JsonNode delta = choices.path(0).path("delta");
+                        JsonNode delta = choices.path(0).path("delta");
 
-                    // 内容增量
-                    JsonNode contentNode = delta.path("content");
-                    if (!contentNode.isMissingNode() && !contentNode.isNull()) {
-                        String text = contentNode.asText("");
-                        if (!text.isEmpty()) {
-                            contentBuilder.append(text);
-                            streamHandler.onChunk(text);
-                        }
-                    }
-
-                    // 推理内容增量（思维模型）
-                    JsonNode reasoningNode = delta.path("reasoning_content");
-                    if (!reasoningNode.isMissingNode() && !reasoningNode.isNull()) {
-                        String reasoning = reasoningNode.asText("");
-                        if (!reasoning.isEmpty()) {
-                            reasoningBuilder.append(reasoning);
-                        }
-                    }
-
-                    // 工具调用增量
-                    JsonNode toolCallsNode = delta.path("tool_calls");
-                    if (toolCallsNode.isArray()) {
-                        for (JsonNode tc : toolCallsNode) {
-                            int index = tc.path("index").asInt(0);
-                            // 确保列表足够大
-                            while (toolCallDeltas.size() <= index) {
-                                toolCallDeltas.add(new ToolCallDelta());
-                            }
-                            ToolCallDelta tcd = toolCallDeltas.get(index);
-                            if (tc.has("id") && !tc.path("id").asText("").isEmpty()) {
-                                tcd.id = tc.path("id").asText();
-                            }
-                            JsonNode fn = tc.path("function");
-                            if (fn.has("name") && !fn.path("name").asText("").isEmpty()) {
-                                tcd.name = fn.path("name").asText();
-                            }
-                            if (fn.has("arguments")) {
-                                tcd.arguments.append(fn.path("arguments").asText(""));
+                        // 推理内容增量（思维模型）—— 先于 content 到达，实时输出
+                        JsonNode reasoningNode = delta.path("reasoning_content");
+                        if (!reasoningNode.isMissingNode() && !reasoningNode.isNull()) {
+                            String reasoning = reasoningNode.asText("");
+                            if (!reasoning.isEmpty()) {
+                                reasoningBuilder.append(reasoning);
+                                streamHandler.onReasoningChunk(reasoning);
                             }
                         }
-                    }
 
-                } catch (JsonProcessingException e) {
-                    LOG.log(Level.FINE, "跳过格式错误的 SSE 数据块", e);
-                }
-            });
+                        // 内容增量
+                        JsonNode contentNode = delta.path("content");
+                        if (!contentNode.isMissingNode() && !contentNode.isNull()) {
+                            String text = contentNode.asText("");
+                            if (!text.isEmpty()) {
+                                contentBuilder.append(text);
+                                streamHandler.onChunk(text);
+                            }
+                        }
+
+                        // 工具调用增量
+                        JsonNode toolCallsNode = delta.path("tool_calls");
+                        if (toolCallsNode.isArray()) {
+                            for (JsonNode tc : toolCallsNode) {
+                                int index = tc.path("index").asInt(0);
+                                // 确保列表足够大
+                                while (toolCallDeltas.size() <= index) {
+                                    toolCallDeltas.add(new ToolCallDelta());
+                                }
+                                ToolCallDelta tcd = toolCallDeltas.get(index);
+                                if (tc.has("id") && !tc.path("id").asText("").isEmpty()) {
+                                    tcd.id = tc.path("id").asText();
+                                }
+                                JsonNode fn = tc.path("function");
+                                if (fn.has("name") && !fn.path("name").asText("").isEmpty()) {
+                                    tcd.name = fn.path("name").asText();
+                                }
+                                if (fn.has("arguments")) {
+                                    tcd.arguments.append(fn.path("arguments").asText(""));
+                                }
+                            }
+                        }
+
+                    } catch (JsonProcessingException e) {
+                        LOG.log(Level.FINE, "跳过格式错误的 SSE 数据块", e);
+                    }
+                });
+            } finally {
+                // 通知 UI 流结束（恢复 spinner），即使中途出错也保证调用
+                streamHandler.onStreamEnd();
+            }
 
             // 从累积数据构建响应
             String reasoning = reasoningBuilder.isEmpty() ? null : reasoningBuilder.toString();
@@ -196,8 +217,7 @@ public class OpenAiCompatibleModelClient implements ModelClient {
             }
             return ModelResponse.text(content, reasoning);
 
-        } catch (IOException | InterruptedException e) {
-            Thread.currentThread().interrupt();
+        } catch (IOException e) {
             String msg = e.getMessage();
             return ModelResponse.error("流式请求失败: " + (msg != null ? msg : e.getClass().getSimpleName()));
         }
@@ -224,18 +244,21 @@ public class OpenAiCompatibleModelClient implements ModelClient {
     }
 
     /**
-     * 带指数退避的 HTTP 请求重试（处理 429 和 5xx）
+     * 带指数退避的 HTTP 请求重试（处理 429 和 5xx），支持 Ctrl+C 打断。
      */
     private HttpResponse<String> sendWithRetry(HttpRequest request) throws IOException, InterruptedException {
         rateLimiter.acquire();
         IOException lastException = null;
         for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+            if (cancelFlag != null && cancelFlag.get()) {
+                throw new IOException("已被用户打断");
+            }
             try {
                 HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
                 int status = response.statusCode();
                 if (status == 429 || status >= 500) {
                     if (attempt < MAX_RETRIES) {
-                        long delay = BASE_DELAY_MS * (1L << attempt); // 1s, 2s, 4s
+                        long delay = BASE_DELAY_MS * (1L << attempt); // 1s, 2s, 4s, 8s, 16s
                         LOG.log(Level.WARNING, "HTTP " + status + "，" + delay + "ms 后重试（第 " + (attempt + 1) + "/" + MAX_RETRIES + ")");
                         Thread.sleep(delay);
                         continue;
@@ -250,6 +273,35 @@ public class OpenAiCompatibleModelClient implements ModelClient {
                     Thread.sleep(delay);
                 }
             }
+        }
+        throw lastException;
+    }
+
+    /**
+     * 流式请求（SSE）带指数退避重试 —— 用于处理 429 限流和 5xx 服务端错误，支持 Ctrl+C 打断。
+     */
+    private HttpResponse<java.util.stream.Stream<String>> sendStreamWithRetry(HttpRequest request)
+            throws IOException, InterruptedException {
+        rateLimiter.acquire();
+        IOException lastException = null;
+        for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+            if (cancelFlag != null && cancelFlag.get()) {
+                throw new IOException("已被用户打断");
+            }
+            HttpResponse<java.util.stream.Stream<String>> response =
+                    httpClient.send(request, HttpResponse.BodyHandlers.ofLines());
+            int status = response.statusCode();
+            if (status == 429 || status >= 500) {
+                if (attempt < MAX_RETRIES) {
+                    response.body().close();
+                    long delay = BASE_DELAY_MS * (1L << attempt); // 1s, 2s, 4s, 8s, 16s
+                    LOG.log(Level.WARNING, "HTTP " + status + "，" + delay + "ms 后重试（第 "
+                            + (attempt + 1) + "/" + MAX_RETRIES + ")");
+                    Thread.sleep(delay);
+                    continue;
+                }
+            }
+            return response;
         }
         throw lastException;
     }

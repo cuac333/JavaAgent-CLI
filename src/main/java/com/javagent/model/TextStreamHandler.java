@@ -23,4 +23,28 @@ public interface TextStreamHandler {
      * @param chunk 本次收到的一小段文本（通常几个字到几十个字）
      */
     void onChunk(String chunk);
+
+    /**
+     * 一次 SSE 流开始时的回调（只调用一次）。
+     * 用于让 UI 暂停加载动画，让流式文本不被覆盖。
+     */
+    default void onStreamStart() {
+    }
+
+    /**
+     * 一次 SSE 流结束时的回调（只调用一次），无论流正常结束或出错都会调用。
+     * 用于让 UI 恢复加载动画。
+     */
+    default void onStreamEnd() {
+    }
+
+    /**
+     * 收到推理内容增量时的回调（思维模型的 reasoning_content）。
+     * 默认与普通文本同样处理；UI 层可覆盖此方法以不同样式（如暗淡斜体）显示。
+     *
+     * @param reasoningChunk 本次收到的推理内容片段
+     */
+    default void onReasoningChunk(String reasoningChunk) {
+        onChunk(reasoningChunk);
+    }
 }

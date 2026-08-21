@@ -338,7 +338,7 @@ java --enable-native-access=ALL-UNNAMED -jar .\target\javaagent-cli-1.0.0.jar
 │  文件编辑(edit,write,delete)需确认    │  /status  查看运行状态             │
 │  输入 / 然后按 Tab 键自动补全命令     │  /exit  退出程序                   │
 │                                       │ ───────────────────────────────────│
-│  D:\develop\vs-code\JavaAgent-CLI-mcq │  real · mimo-v2.5-pro · 8 tools    │
+│  D:\develop\vs-code\JavaAgent-CLI │  real · mimo-v2.5-pro · 8 tools    │
 ╰────────────────────────────────────────────────────────────────────────────╯
 ```
 

@@ -3,6 +3,7 @@ package com.javagent.model;
 import com.javagent.tools.ToolDefinition;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 模型客户端接口 —— 与 AI 模型通信的统一入口
@@ -52,15 +53,29 @@ public interface ModelClient {
     ) {
         // 先获取完整响应
         ModelResponse response = chat(systemPrompt, messages, tools);
-        // 如果需要流式输出且响应是文本，就分块发送
-        if (streamHandler != null && response.isText()) {
-            emitTextChunks(response.content(), streamHandler);
+        // 需要流式输出且响应包含正文时，就分块发送。
+        // TEXT 响应对应最终结论；TOOL_CALLS 响应对应调用工具旁的叙述文字
+        //（真实模式通过 SSE 流直接逐块到达，不受此默认实现约束）。
+        if (streamHandler != null && !response.isError() && !response.content().isEmpty()) {
+            streamHandler.onStreamStart();
+            try {
+                emitTextChunks(response.content(), streamHandler);
+            } finally {
+                streamHandler.onStreamEnd();
+            }
         }
         return response;
     }
 
     /** 获取模型客户端的名称（用于显示） */
     String name();
+
+    /**
+     * 设置取消标志 —— 用于在重试退避等阻塞操作中检查用户是否请求打断。
+     * 默认空实现，子类可按需重写。
+     */
+    default void setCancelFlag(AtomicBoolean cancelFlag) {
+    }
 
     /**
      * 将文本分块发送给流式处理器

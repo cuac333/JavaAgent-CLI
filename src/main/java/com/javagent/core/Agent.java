@@ -16,6 +16,7 @@ import com.javagent.tools.ToolRegistry;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -65,19 +66,42 @@ public class Agent {
      */
     public String processTurn(String userInput, ApprovalHandler approvalHandler,
                                TextStreamHandler streamHandler, ToolDisplayCallback displayCallback) {
+        return processTurn(userInput, approvalHandler, streamHandler, displayCallback, null);
+    }
+
+    /**
+     * 处理一个对话轮次（支持 ESC 打断）。
+     *
+     * @param userInput        用户的文本输入
+     * @param approvalHandler  工具审批回调（需要确认时调用）
+     * @param streamHandler    流式文本回调（可为 null）
+     * @param displayCallback  工具执行显示回调（可为 null）
+     * @param cancelFlag       打断标志（可为 null；置为 true 时 Agent 尽快停止）
+     * @return Agent 的最终文本回复
+     */
+    public String processTurn(String userInput, ApprovalHandler approvalHandler,
+                               TextStreamHandler streamHandler, ToolDisplayCallback displayCallback,
+                               AtomicBoolean cancelFlag) {
         conversationManager.addUserMessage(userInput);
         String systemPrompt = buildSystemPrompt(toolRegistry.definitions());
 
         int consecutiveFailures = 0;
         String lastFailedTool = null;
         for (int iteration = 0; iteration < config.maxIterations(); iteration++) {
+            if (cancelFlag != null && cancelFlag.get()) {
+                return finishInterrupted("已被打断。");
+            }
             TextStreamHandler effectiveStreamHandler = config.streamResponses() ? streamHandler : null;
+            modelClient.setCancelFlag(cancelFlag);
             ModelResponse response = modelClient.chat(
                     systemPrompt,
                     conversationManager.currentContext(),
                     toolRegistry.definitions(),
                     effectiveStreamHandler
             );
+            if (cancelFlag != null && cancelFlag.get()) {
+                return finishInterrupted("已被打断。");
+            }
 
             // 当 API 因缺少 reasoning_content 而拒绝时，用新上下文重试
             // （旧对话消息缺少思维模型的推理数据时会发生这种情况）
@@ -85,6 +109,7 @@ public class Agent {
                 List<Message> freshContext = List.of(
                         Message.user(userInput)
                 );
+                modelClient.setCancelFlag(cancelFlag);
                 response = modelClient.chat(
                         systemPrompt,
                         freshContext,
@@ -113,12 +138,19 @@ public class Agent {
 
             conversationManager.addAssistantToolCallMessage(response.content(), response.toolCalls(), response.reasoningContent());
             for (ToolCall toolCall : response.toolCalls()) {
+                // 打断检查：ESC 后不再执行新工具
+                if (cancelFlag != null && cancelFlag.get()) {
+                    return finishInterrupted("已被打断。");
+                }
                 // 通知 UI 工具开始执行
                 if (displayCallback != null) {
                     displayCallback.onToolStart(toolCall.name(), summarizeToolCall(toolCall));
                 }
 
                 ToolExecutionResult result = executeToolCall(toolCall, approvalHandler);
+                if (cancelFlag != null && cancelFlag.get()) {
+                    return finishInterrupted("已被打断。");
+                }
                 // 追踪连续失败以打破无限循环
                 if (result.error()) {
                     if (toolCall.name().equals(lastFailedTool)) {
@@ -156,6 +188,13 @@ public class Agent {
         conversationManager.addAssistantMessage(limitText);
         autoSaveQuietly();
         return limitText;
+    }
+
+    /** 用户打断（ESC）时的收尾：记录打断消息并返回。 */
+    private String finishInterrupted(String message) {
+        conversationManager.addAssistantMessage(message);
+        autoSaveQuietly();
+        return message;
     }
 
     private ToolExecutionResult executeToolCall(ToolCall toolCall, ApprovalHandler approvalHandler) {

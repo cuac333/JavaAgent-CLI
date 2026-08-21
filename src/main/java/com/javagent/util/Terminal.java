@@ -17,6 +17,7 @@ public final class Terminal {
     public static final String BOLD = "\033[1m";
     public static final String DIM = "\033[2m";
     public static final String ITALIC = "\033[3m";
+    public static final String UNDERLINE = "\033[4m";
 
     // Foreground colors
     public static final String RED = "\033[31m";
@@ -210,7 +211,11 @@ public final class Terminal {
     /** 去除文本中所有的 ANSI 转义序列。 */
     public static String stripAnsi(String text) {
         if (text == null) return "";
-        return text.replaceAll("\033\\[[;\\d]*m", "");
+        // 去掉 ANSI SGR 颜色序列: \033[0m ~ \033[38;5;xxxm
+        // 去掉 OSC 8 超链接序列: \033]8;;url\033\（终端链接标记，不可见但占字符）
+        String s = text.replaceAll("\033\\[[;\\d]*m", "");
+        s = s.replaceAll("\033\\]8;;[^\033]*\033\\\\", "");
+        return s;
     }
 
     /**

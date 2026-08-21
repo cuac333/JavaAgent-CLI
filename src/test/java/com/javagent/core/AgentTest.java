@@ -25,6 +25,7 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -217,6 +218,38 @@ class AgentTest {
         }
     }
 
+    @Test
+    void cancelsWhenFlagIsSet() throws IOException {
+        Config config = Config.load(tempDir);
+        ConversationManager manager = new ConversationManager(config);
+        ToolRegistry registry = new ToolRegistry();
+        Agent agent = new Agent(config, new MockModelClient(), registry, manager);
+        AtomicBoolean cancelFlag = new AtomicBoolean(true); // 预先设置取消
+
+        String response = agent.processTurn("hello", tc -> ApprovalDecision.APPROVED, null, null, cancelFlag);
+
+        assertEquals("已被打断。", response);
+        assertEquals(2, manager.messageCount()); // user + 取消消息
+    }
+
+    @Test
+    void cancelsDuringToolLoop() throws Exception {
+        Path file = tempDir.resolve("pom.xml");
+        Files.writeString(file, "<project/>\n");
+        Config config = Config.load(tempDir);
+        ConversationManager manager = new ConversationManager(config);
+        ToolRegistry registry = new ToolRegistry();
+        registry.register(new ReadFileTool());
+        AtomicBoolean cancelFlag = new AtomicBoolean(false);
+        // 模型在第一次被调用后设置取消标志，模拟"已执行一轮、用户按 ESC"
+        Agent agent = new Agent(config, new OneShotToolModelClient(file, cancelFlag), registry, manager);
+
+        String response = agent.processTurn("loop", tc -> ApprovalDecision.APPROVED, null, null, cancelFlag);
+
+        assertTrue(response.contains("打断"), "取消后应返回打断消息，实际: " + response);
+        assertEquals(4, manager.messageCount()); // user + assistant(toolcall) + toolresult + 打断
+    }
+
     private static final class LoopingModelClient implements ModelClient {
         private final Path file;
 
@@ -232,6 +265,35 @@ class AgentTest {
         @Override
         public String name() {
             return "loop";
+        }
+    }
+
+    /** 第一次返回工具调用（进入工具循环），之后设置取消标志，模拟用户在工具执行中按 ESC。 */
+    private static final class OneShotToolModelClient implements ModelClient {
+        private final Path file;
+        private final AtomicBoolean cancelFlag;
+        private boolean firstCall = true;
+
+        private OneShotToolModelClient(Path file, AtomicBoolean cancelFlag) {
+            this.file = file;
+            this.cancelFlag = cancelFlag;
+        }
+
+        @Override
+        public ModelResponse chat(String systemPrompt, List<Message> messages, List<ToolDefinition> tools) {
+            if (firstCall) {
+                firstCall = false;
+                return ModelResponse.toolCalls("loop",
+                        List.of(ToolCall.of("read_file", Map.of("path", file.toString()))));
+            }
+            // 后续调用时触发取消 —— 模拟用户在工具执行期间按 ESC
+            cancelFlag.set(true);
+            return ModelResponse.text("done");
+        }
+
+        @Override
+        public String name() {
+            return "one-shot-tool";
         }
     }
 }

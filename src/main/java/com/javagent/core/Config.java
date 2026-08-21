@@ -53,6 +53,7 @@ public class Config {
     private static final String KEY_EFFORT = "agent.effort";
     private static final String KEY_MAX_TOKENS = "agent.max_tokens";
     private static final String KEY_COMPACT_THRESHOLD = "agent.compact_threshold";
+    private static final String KEY_SHOW_THINKING = "agent.show_thinking";
 
     /**
      * 存储所有配置项的 Properties 对象
@@ -126,6 +127,7 @@ public class Config {
         properties.putIfAbsent(KEY_EFFORT, "high");
         properties.putIfAbsent(KEY_MAX_TOKENS, "200000");
         properties.putIfAbsent(KEY_COMPACT_THRESHOLD, "0.8");
+        properties.putIfAbsent(KEY_SHOW_THINKING, "true");
     }
 
     public void save() throws IOException {
@@ -196,6 +198,11 @@ public class Config {
 
     public int maxIterations() {
         return Integer.parseInt(properties.getProperty(KEY_MAX_ITERATIONS));
+    }
+
+    public void setMaxIterations(int iterations) throws IOException {
+        properties.setProperty(KEY_MAX_ITERATIONS, Integer.toString(iterations));
+        save();
     }
 
     public boolean bashEnabled() {
@@ -275,6 +282,16 @@ public class Config {
 
     public double compactThreshold() {
         return Double.parseDouble(properties.getProperty(KEY_COMPACT_THRESHOLD, "0.8"));
+    }
+
+    /** 是否在终端显示思维模型的推理内容（reasoning_content）。 */
+    public boolean showThinking() {
+        return Boolean.parseBoolean(properties.getProperty(KEY_SHOW_THINKING, "true"));
+    }
+
+    public void setShowThinking(boolean enabled) throws IOException {
+        properties.setProperty(KEY_SHOW_THINKING, Boolean.toString(enabled));
+        save();
     }
 
     public void setEffort(String effort) throws IOException {

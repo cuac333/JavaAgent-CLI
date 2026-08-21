@@ -6,12 +6,16 @@
 
 - **ReAct 推理循环** — Reasoning + Acting 交替执行，支持多步工具编排
 - **Tools** — 8 个内置工具（文件读写、编辑、搜索、Shell、HTTP），支持 SPI 插件扩展
-- **SSE 流式推理** — 逐 token 实时输出，支持 reasoning_content 思维链
+- **SSE 流式推理** — 逐 token 实时输出，支持 reasoning_content 思维链，增量 Markdown 渲染（粗体/斜体/代码块/表格/链接）
 - **Human-in-the-Loop** — 只读操作自动放行，写操作需用户显式批准
 - **Token 级上下文可视化** — `/context` 命令用真实 token 数计量上下文占用，彩色柱状图分类显示
-- **推理深度控制** — 5 级 effort（low/high/xhigh/max/ultra），交互式滑块选择，ultra 霓虹特效、
+- **推理深度控制** — 5 级 effort（low/high/xhigh/max/ultra），交互式滑块选择，ultra 霓虹特效
 - **安全沙箱** — 工作区隔离、危险命令检测、敏感信息脱敏、连续失败保护
 - **跨平台** — Windows（PowerShell/cmd.exe）/ macOS / Linux，统一处理 `\n` 和 `\r\n` 换行符
+- **打断机制** — agent 运行期间按 Ctrl+C 可打断当前操作，返回命令提示符（不退出程序）
+- **429 限流指数退避** — 流式/非流式路径均支持 1s/2s/4s/8s/16s 退避重试，最多 5 轮
+
+> 完整更新历史见 [CHANGELOG](docs/CHANGELOG.md)。
 
 ## 快速开始
 
