@@ -260,7 +260,12 @@ public class OpenAiCompatibleModelClient implements ModelClient {
                     if (attempt < MAX_RETRIES) {
                         long delay = BASE_DELAY_MS * (1L << attempt); // 1s, 2s, 4s, 8s, 16s
                         LOG.log(Level.WARNING, "HTTP " + status + "，" + delay + "ms 后重试（第 " + (attempt + 1) + "/" + MAX_RETRIES + ")");
-                        Thread.sleep(delay);
+                        try {
+                            Thread.sleep(delay);
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            throw new IOException("已被用户打断");
+                        }
                         continue;
                     }
                 }
@@ -270,7 +275,12 @@ public class OpenAiCompatibleModelClient implements ModelClient {
                 if (attempt < MAX_RETRIES) {
                     long delay = BASE_DELAY_MS * (1L << attempt);
                     LOG.log(Level.WARNING, "IO 错误，" + delay + "ms 后重试（第 " + (attempt + 1) + "/" + MAX_RETRIES + "): " + e.getMessage());
-                    Thread.sleep(delay);
+                    try {
+                        Thread.sleep(delay);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new IOException("已被用户打断");
+                    }
                 }
             }
         }
@@ -297,7 +307,12 @@ public class OpenAiCompatibleModelClient implements ModelClient {
                     long delay = BASE_DELAY_MS * (1L << attempt); // 1s, 2s, 4s, 8s, 16s
                     LOG.log(Level.WARNING, "HTTP " + status + "，" + delay + "ms 后重试（第 "
                             + (attempt + 1) + "/" + MAX_RETRIES + ")");
-                    Thread.sleep(delay);
+                    try {
+                        Thread.sleep(delay);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new IOException("已被用户打断");
+                    }
                     continue;
                 }
             }

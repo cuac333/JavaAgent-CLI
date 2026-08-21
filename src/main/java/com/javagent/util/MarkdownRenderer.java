@@ -182,25 +182,38 @@ public final class MarkdownRenderer {
 
     /** 渲染行内格式: 粗体、斜体、粗斜体、删除线、下划线、高亮、行内代码、链接(可点击OSC8)、裸URL。 */
     private static String renderInline(String text) {
-        // 顺序很重要：从最长模式到最短，避免 *** 被 ** 和 * 抢走
-        // 1. 粗斜体 ***text*** — 粗体+斜体
-        String result = text
-                .replaceAll("\\*\\*\\*(.+?)\\*\\*\\*", "\033[1m\033[3m$1\033[0m")
-                // 2. 粗体 **text**
-                .replaceAll("\\*\\*(.+?)\\*\\*", "\033[1m$1\033[0m")
-                // 3. 斜体 *text*（注意：前后不能紧贴字母，避免误伤下划线等）
-                .replaceAll("(?<![\\w\\*])\\*([^\\*\\s].*?)\\*(?![\\w\\*])", "\033[3m$1\033[0m")
-                // 4. 删除线 ~~text~~
-                .replaceAll("~~(.+?)~~", "\033[9m$1\033[0m")
-                // 5. HTML 下划线 <u>text</u>
-                .replaceAll("(?i)<u>(.+?)</u>", "\033[4m$1\033[0m")
-                // 6. 高亮 ==text== — 浅蓝紫（Claude Code 风格），黑底
-                .replaceAll("==([^=]+?)==", "\033[38;5;147m$1\033[0m");
-
-        // 7. 链接 [text](url) — 蓝色下划线 + OSC 8 超链接（终端可点击）
-        Matcher linkMatcher = LINK_PATTERN.matcher(result);
+        // 顺序很重要：
+        // 1. 先处理行内代码 `code` — 把代码段整个包裹起来，保护内部 ** 和 * 不被后续处理
+        Matcher m = INLINE_CODE_PATTERN.matcher(text);
         StringBuilder sb = new StringBuilder();
         int last = 0;
+        while (m.find()) {
+            sb.append(text, last, m.start());
+            sb.append(colorize(BG_DARK + BRIGHT_WHITE, m.group(1)));
+            last = m.end();
+        }
+        sb.append(text.substring(last));
+        String result = sb.toString();
+
+        // 2. 从最长模式到最短，避免 *** 被 ** 和 * 抢走
+        result = result
+                // 粗斜体 ***text***
+                .replaceAll("\\*\\*\\*(.+?)\\*\\*\\*", "\033[1m\033[3m$1\033[0m")
+                // 粗体 **text**
+                .replaceAll("\\*\\*(.+?)\\*\\*", "\033[1m$1\033[0m")
+                // 斜体 *text*（前后不能紧贴字母，避免误伤下划线等）
+                .replaceAll("(?<![\\w\\*])\\*([^\\*\\s].*?)\\*(?![\\w\\*])", "\033[3m$1\033[0m")
+                // 删除线 ~~text~~
+                .replaceAll("~~(.+?)~~", "\033[9m$1\033[0m")
+                // HTML 下划线 <u>text</u>
+                .replaceAll("(?i)<u>(.+?)</u>", "\033[4m$1\033[0m")
+                // 高亮 ==text== — 浅蓝紫（Claude Code 风格），黑底
+                .replaceAll("==([^=]+?)==", "\033[38;5;147m$1\033[0m");
+
+        // 3. 链接 [text](url) — 蓝色下划线 + OSC 8 超链接（终端可点击）
+        Matcher linkMatcher = LINK_PATTERN.matcher(result);
+        sb = new StringBuilder();
+        last = 0;
         while (linkMatcher.find()) {
             sb.append(result, last, linkMatcher.start());
             String linkText = linkMatcher.group(1);
@@ -213,7 +226,7 @@ public final class MarkdownRenderer {
         sb.append(result.substring(last));
         result = sb.toString();
 
-        // 8. 裸 URL — 尚未被处理的 http/https 链接
+        // 4. 裸 URL — 尚未被处理的 http/https 链接
         Matcher urlMatcher = BARE_URL_PATTERN.matcher(result);
         sb = new StringBuilder();
         last = 0;
@@ -224,18 +237,6 @@ public final class MarkdownRenderer {
             sb.append(colorize(BLUE + UNDERLINE, url));
             sb.append("\033]8;;\033\\");
             last = urlMatcher.end();
-        }
-        sb.append(result.substring(last));
-        result = sb.toString();
-
-        // 9. 行内代码 `code`
-        Matcher m = INLINE_CODE_PATTERN.matcher(result);
-        sb = new StringBuilder();
-        last = 0;
-        while (m.find()) {
-            sb.append(result, last, m.start());
-            sb.append(colorize(BG_DARK + BRIGHT_WHITE, m.group(1)));
-            last = m.end();
         }
         sb.append(result.substring(last));
         result = sb.toString();
