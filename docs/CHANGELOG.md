@@ -1,5 +1,17 @@
 # 更新日志
 
+## 2026-08-22 v1.1.1 — 行内代码顺序修复、中断标志恢复、README 更新
+
+### Bug 修复
+
+- **行内代码被粗体/斜体误处理** — `renderInline` 里行内代码排在最后，粗体先处理导致 ` `` `**bold**` `` ` 里的 `**` 被当成粗体，改为行内代码最先处理
+- **`Thread.sleep` 中断标志未恢复** — 重试循环中 `Thread.sleep` 抛 `InterruptedException` 时未恢复中断标志，改为 `try-catch` 后恢复并抛出 `IOException("已被用户打断")`
+
+### 文档
+
+- README 补充 `/thinking` 命令、测试数 66→79、Streaming Inference 说明
+- 新增 `GIT_HISTORY.md` 记录项目提交历史
+
 ## 2026-08-21 v1.1.0 — 增量 Markdown 渲染、流式修复、ESC/Ctrl+C 打断、表格渲染优化
 
 ### 新增功能
