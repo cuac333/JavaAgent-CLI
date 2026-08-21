@@ -233,6 +233,17 @@ public class Agent {
         builder.append("如果用户请求不明确，应先询问澄清，而不是自行假设。\n");
         builder.append("严格区分：仅用'是什么/为什么/怎么做'等问题回答时，不写/不改代码；仅当出现明确的动作词如'实现/写/修复/修改'且用户要求执行时才行动；有疑问时，先回答，不要擅自行动。\n");
 
+        // --- 自认知段 ---
+        builder.append("\n===== 项目自述 =====\n");
+        builder.append("项目名称: JavaAgent CLI\n");
+        builder.append("定位: 基于 ReAct 架构的自主编程智能体（Autonomous Coding Agent），具备工具调用、文件编辑、流式推理和交互式终端能力。\n");
+        builder.append("工作区: 所有文件操作限制在项目目录内。\n");
+        builder.append("安全机制: 危险命令检测（Unix 10 类 + Windows 10 类）、敏感信息脱敏（API Key/Token 自动过滤）、连续失败保护（同一工具 3 次失败自动中断）。\n");
+        builder.append("打断: Ctrl+C 可打断当前操作，返回命令提示符，不退出程序。\n");
+        builder.append("配置: 项目根目录的 config.properties 文件（gitignored），查找顺序：项目根→工作目录→~/.javaagent-cli/config.properties。支持 /reload 热重载。\n");
+        builder.append("当用户问及详细功能、命令、版本历史或配置项时，主动读取 README.md 或 docs/ 目录下的文档获取完整信息。\n");
+        // --- 自认知段结束 ---
+
         // 推理深度级别
         String effort = config.effort();
         switch (effort) {

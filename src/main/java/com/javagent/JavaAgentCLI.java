@@ -626,7 +626,6 @@ public class JavaAgentCLI {
                         "作者：莫承潜 黄麟淞 王郅为 黄春云 胡鸿扬\r\n" + //
                         "==========================================";
         out.println();
-        out.println(str);
         out.println(dim("  ┌" + border + "┐"));
         for (SlashCommandCompleter.CommandDef cmd : commands) {
             String name = String.format("%-" + colWidth + "s", cmd.name());
